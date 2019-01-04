@@ -1,0 +1,15 @@
+*~
+debian/files
+debian/libgbinder-radio-dev.debhelper.log
+debian/libgbinder-radio-dev.substvars
+debian/libgbinder-radio-dev
+debian/libgbinder-radio.debhelper.log
+debian/libgbinder-radio.postinst.debhelper
+debian/libgbinder-radio.postrm.debhelper
+debian/libgbinder-radio.substvars
+debian/libgbinder-radio
+debian/tmp
+documentation.list
+installroot
+build
+RPMS
