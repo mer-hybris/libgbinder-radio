@@ -151,6 +151,30 @@ typedef enum radio_tech {
 } RADIO_TECH;
 G_STATIC_ASSERT(sizeof(RADIO_TECH) == 4);
 
+typedef enum radio_access_family {
+    RAF_UNKNOWN = (1 << RADIO_TECH_UNKNOWN),
+    RAF_GPRS = (1 << RADIO_TECH_GPRS),
+    RAF_EDGE = (1 << RADIO_TECH_EDGE),
+    RAF_UMTS = (1 << RADIO_TECH_UMTS),
+    RAF_IS95A = (1 << RADIO_TECH_IS95A),
+    RAF_IS95B = (1 << RADIO_TECH_IS95B),
+    RAF_ONE_X_RTT = (1 << RADIO_TECH_ONE_X_RTT),
+    RAF_EVDO_0 = (1 << RADIO_TECH_EVDO_0),
+    RAF_EVDO_A = (1 << RADIO_TECH_EVDO_A),
+    RAF_HSDPA = (1 << RADIO_TECH_HSDPA),
+    RAF_HSUPA = (1 << RADIO_TECH_HSUPA),
+    RAF_HSPA = (1 << RADIO_TECH_HSPA),
+    RAF_EVDO_B = (1 << RADIO_TECH_EVDO_B),
+    RAF_EHRPD = (1 << RADIO_TECH_EHRPD),
+    RAF_LTE = (1 << RADIO_TECH_LTE),
+    RAF_HSPAP = (1 << RADIO_TECH_HSPAP),
+    RAF_GSM = (1 << RADIO_TECH_GSM),
+    RAF_TD_SCDMA = (1 << RADIO_TECH_TD_SCDMA),
+    RAF_IWLAN = (1 << RADIO_TECH_IWLAN),
+    RAF_LTE_CA = (1 << RADIO_TECH_LTE_CA)
+} RADIO_ACCESS_FAMILY;
+G_STATIC_ASSERT(sizeof(RADIO_ACCESS_FAMILY) == 4);
+
 typedef enum radio_card_state {
     RADIO_CARD_STATE_ABSENT,
     RADIO_CARD_STATE_PRESENT,
@@ -612,6 +636,14 @@ typedef struct radio_lce_status_info {
     guint8 actualIntervalMs RADIO_ALIGNED(1);
 } RADIO_ALIGNED(4) RadioLceStatusInfo;
 G_STATIC_ASSERT(sizeof(RadioLceStatusInfo) == 8);
+
+typedef struct radio_activity_stats_info {
+    guint32 sleepModeTimeMs RADIO_ALIGNED(4);
+    guint32 idleModeTimeMs RADIO_ALIGNED(4);
+    guint32 txmModetimeMs[5 /* NUM_TX_POWER_LEVELS */] RADIO_ALIGNED(4);
+    guint32 rxModeTimeMs RADIO_ALIGNED(4);
+} RADIO_ALIGNED(4) RadioActivityStatsInfo;
+G_STATIC_ASSERT(sizeof(RadioActivityStatsInfo) == 32);
 
 /* c(req,resp,callName,CALL_NAME) */
 #define RADIO_CALL_1_0(c) \
