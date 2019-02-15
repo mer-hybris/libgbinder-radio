@@ -42,6 +42,7 @@
 #include <gbinder.h>
 
 #include <gutil_idlepool.h>
+#include <gutil_strv.h>
 #include <gutil_misc.h>
 
 #include <glib-object.h>
@@ -59,6 +60,8 @@ struct radio_instance_priv {
     char* dev;
     char* slot;
     char* key;
+    char** response_ifaces;
+    char** indication_ifaces;
 };
 
 G_DEFINE_TYPE(RadioInstance, radio_instance, G_TYPE_OBJECT)
@@ -80,9 +83,29 @@ enum radio_instance_signal {
 #define SIGNAL_ACK_NAME                "radio-instance-ack"
 #define SIGNAL_DEATH_NAME              "radio-instance-death"
 
-static guint radio_instance_signals[SIGNAL_COUNT] = { 0 };
+typedef struct radio_instance_params {
+    const char* dev;
+    const char* slot;
+    const char* radio_iface;
+    const char* response_ifaces;
+    const char* indication_ifaces;
+} RadioInstanceParams;
 
+#define PARAM_KEY_DEV                   "dev"
+#define PARAM_KEY_NAME                  "name"
+#define PARAM_KEY_RADIO_IFACE           "radio-interface"
+#define PARAM_KEY_RESPONSE_IFACES       "response-interfaces"
+#define PARAM_KEY_INDICATION_IFACES     "indication-interfaces"
+
+#define PARAM_DEFAULT_DEV               "/dev/hwbinder"
+#define PARAM_DEFAULT_NAME              "slot1"
+#define PARAM_DEFAULT_RADIO_IFACE       radio_interface
+#define PARAM_DEFAULT_RESPONSE_IFACES   RADIO_RESPONSE_1_0
+#define PARAM_DEFAULT_INDICATION_IFACES RADIO_INDICATION_1_0
+
+static guint radio_instance_signals[SIGNAL_COUNT] = { 0 };
 static GHashTable* radio_instance_table = NULL;
+static char radio_interface[] = RADIO_1_0;
 
 /*==========================================================================*
  * Implementation
@@ -319,19 +342,52 @@ radio_instance_gone(
 }
 
 static
+char**
+radio_instance_ifaces(
+    const char* comma_separated_list,
+    const char* base)
+{
+    static const char hidl_base[] = "android.hidl.base@1.0::IBase";
+    char** list = g_strsplit(comma_separated_list, ",", 0);
+    char** ptr = list;
+    guint n = 0;
+
+    /* Strip leading and trailing whitespaces */
+    while (*ptr) {
+        *ptr = g_strstrip(*ptr);
+        ptr++;
+        n++;
+    }
+
+    /* Drop IBase if it's there */
+    if (n > 0 && !g_strcmp0(gutil_strv_at(list, n - 1), hidl_base)) {
+        g_free(list[n - 1]);
+        list[--n] = NULL;
+    }
+
+    /* Add the base interface if it's not there */
+    if (n < 1 || g_strcmp0(gutil_strv_at(list, n - 1), base)) {
+        list = g_realloc(list, sizeof(char*) * (n + 2));
+        list[n++] = g_strdup(base);
+        list[n] = NULL;
+    }
+
+    GVERBOSE("%s", comma_separated_list);
+    return list;
+}
+
+static
 RadioInstance*
 radio_instance_create(
-    const char* dev,
-    const char* slot,
-    const char* key)
+    const char* key,
+    const RadioInstanceParams* rip)
 {
     RadioInstance* self = NULL;
-    GBinderServiceManager* sm = gbinder_servicemanager_new(dev);
+    GBinderServiceManager* sm = gbinder_servicemanager_new(rip->dev);
 
     if (sm) {
         int status = 0;
-        const char* iface = RADIO_1_0;
-        char* fqname = g_strconcat(iface, "/", slot, NULL);
+        char* fqname = g_strconcat(radio_interface, "/", rip->slot, NULL);
         GBinderRemoteObject* remote = gbinder_servicemanager_get_service_sync
             (sm, fqname, &status);
 
@@ -348,18 +404,25 @@ radio_instance_create(
 
             self = g_object_new(RADIO_TYPE_INSTANCE, NULL);
             priv = self->priv;
-            self->slot = priv->slot = g_strdup(slot);
-            self->dev = priv->dev = g_strdup(dev);
+            self->slot = priv->slot = g_strdup(rip->slot);
+            self->dev = priv->dev = g_strdup(rip->dev);
             self->key = priv->key = g_strdup(key);
 
             priv->remote = remote;
-            priv->client = gbinder_client_new(remote, iface);
-            priv->indication = gbinder_servicemanager_new_local_object
-                (sm, RADIO_INDICATION_1_0, radio_instance_indication, self);
-            priv->response = gbinder_servicemanager_new_local_object
-                (sm, RADIO_RESPONSE_1_0, radio_instance_response, self);
-            priv->death_id = gbinder_remote_object_add_death_handler
-                (remote, radio_instance_died, self);
+            priv->response_ifaces = radio_instance_ifaces
+                (rip->response_ifaces, RADIO_RESPONSE_1_0);
+            priv->indication_ifaces = radio_instance_ifaces
+                (rip->indication_ifaces, RADIO_INDICATION_1_0);
+
+            priv->client = gbinder_client_new(remote, radio_interface);
+            priv->indication = gbinder_servicemanager_new_local_object2(sm,
+                (const char**)priv->indication_ifaces,
+                radio_instance_indication, self);
+            priv->response = gbinder_servicemanager_new_local_object2(sm,
+                (const char**)priv->response_ifaces,
+                radio_instance_response, self);
+            priv->death_id = gbinder_remote_object_add_death_handler(remote,
+                radio_instance_died, self);
 
             /* IRadio::setResponseFunctions */
             req = gbinder_client_new_request(priv->client);
@@ -368,11 +431,11 @@ radio_instance_create(
             gbinder_writer_append_local_object(&writer, priv->indication);
             reply = gbinder_client_transact_sync_reply(priv->client,
                 RADIO_REQ_SET_RESPONSE_FUNCTIONS, req, &status);
-            GVERBOSE_("setResponseFunctions %s status %d", slot, status);
+            GVERBOSE_("setResponseFunctions %s status %d", rip->slot, status);
             gbinder_local_request_unref(req);
             gbinder_remote_reply_unref(reply);
 
-            GDEBUG("Instance '%s'", slot);
+            GDEBUG("Instance '%s'", rip->slot);
 
             /*
              * Don't destroy GBinderServiceManager right away in case if we
@@ -389,10 +452,79 @@ radio_instance_create(
 static
 char*
 radio_instance_make_key(
-    const char* dev,
-    const char* name)
+    const RadioInstanceParams* rip)
 {
-    return g_strconcat(dev, ":", name, NULL);
+    char* key;
+    GChecksum* md5 = g_checksum_new(G_CHECKSUM_MD5);
+
+    /*
+     * Include null terminators in the hashed data, so that ["a", "bc"]
+     * and ["ab", "c"] produce different hash.
+     *
+     * It's also assumed that caller makes sure that all parameters are
+     * non-NULL, there's no need to check it here.
+     */
+    g_checksum_update(md5, (void*)rip->dev, strlen(rip->dev) + 1);
+    g_checksum_update(md5, (void*)rip->slot, strlen(rip->slot) + 1);
+    g_checksum_update(md5, (void*)rip->radio_iface,
+        strlen(rip->radio_iface) + 1);
+    g_checksum_update(md5, (void*)rip->response_ifaces,
+        strlen(rip->response_ifaces) + 1);
+    g_checksum_update(md5, (void*)rip->indication_ifaces,
+        strlen(rip->indication_ifaces) + 1);
+
+    key = g_strdup(g_checksum_get_string(md5));
+    g_checksum_free(md5);
+    return key;
+}
+
+static
+RadioInstance*
+radio_instance_new_full(
+    const char* dev,
+    const char* slot,
+    const char* radio_iface,
+    const char* response_ifaces,
+    const char* indication_ifaces)
+{
+    RadioInstance* self = NULL;
+    RadioInstanceParams rip;
+    char* key;
+
+    /* Fill in the parameters, apply defauls for the missing ones */
+    rip.dev = (dev && dev[0]) ? dev : PARAM_DEFAULT_DEV;
+    rip.slot = (slot && slot[0]) ? slot : PARAM_DEFAULT_NAME;
+    rip.radio_iface = (radio_iface && radio_iface[0]) ?
+        radio_iface : PARAM_DEFAULT_RADIO_IFACE;
+    rip.response_ifaces = (response_ifaces && response_ifaces[0]) ?
+        response_ifaces : PARAM_DEFAULT_RESPONSE_IFACES;
+    rip.indication_ifaces = (indication_ifaces && indication_ifaces[0]) ?
+        indication_ifaces : PARAM_DEFAULT_INDICATION_IFACES;
+
+    /* Convert parameters into a key (essentially MD-5 hash) */
+    key = radio_instance_make_key(&rip);
+    if (radio_instance_table) {
+        self = g_hash_table_lookup(radio_instance_table, key);
+    }
+    if (self) {
+        g_free(key);
+        return radio_instance_ref(self);
+    } else {
+        self = radio_instance_create(key, &rip);
+        if (self) {
+            if (!radio_instance_table) {
+                radio_instance_table = g_hash_table_new_full
+                    (g_str_hash, g_str_equal, g_free, NULL);
+            }
+            /* radio_instance_gone() will free the key */
+            g_hash_table_replace(radio_instance_table, g_strdup(key), self);
+            g_object_weak_ref(G_OBJECT(self), radio_instance_gone, key);
+            radio_registry_instance_added(self);
+            return self;
+        }
+        g_free(key);
+    }
+    return NULL;
 }
 
 /*==========================================================================*
@@ -400,52 +532,55 @@ radio_instance_make_key(
  *==========================================================================*/
 
 RadioInstance*
+radio_instance_new_with_opts(
+    GHashTable* opts) /* Since 1.0.2 */
+{
+    const char* dev = NULL;
+    const char* slot = NULL;
+    const char* radio_if = NULL;
+    const char* resp_ifs = NULL;
+    const char* ind_ifs = NULL;
+
+    if (opts) {
+        dev = g_hash_table_lookup(opts, PARAM_KEY_DEV);
+        slot = g_hash_table_lookup(opts, PARAM_KEY_NAME);
+        radio_if = g_hash_table_lookup(opts, PARAM_KEY_RADIO_IFACE);
+        resp_ifs = g_hash_table_lookup(opts, PARAM_KEY_RESPONSE_IFACES);
+        ind_ifs = g_hash_table_lookup(opts, PARAM_KEY_INDICATION_IFACES);
+    }
+
+    return radio_instance_new_full(dev, slot, radio_if, resp_ifs, ind_ifs);
+}
+
+RadioInstance*
 radio_instance_new(
     const char* dev,
-    const char* name)
+    const char* slot)
 {
-    if (dev && dev[0] && name && name[0]) {
-        char* key = radio_instance_make_key(dev, name);
-        RadioInstance* self = NULL;
-
-        if (radio_instance_table) {
-            self = g_hash_table_lookup(radio_instance_table, key);
-        }
-        if (self) {
-            g_free(key);
-            return radio_instance_ref(self);
-        } else {
-            self = radio_instance_create(dev, name, key);
-            if (self) {
-                if (!radio_instance_table) {
-                    radio_instance_table = g_hash_table_new_full
-                        (g_str_hash, g_str_equal, g_free, NULL);
-                }
-                g_hash_table_replace(radio_instance_table, g_strdup(key), self);
-                g_object_weak_ref(G_OBJECT(self), radio_instance_gone, key);
-                radio_registry_instance_added(self);
-                return self;
-            }
-        }
-        g_free(key);
-    }
-    return NULL;
+    return radio_instance_new_full(dev, slot, NULL, NULL, NULL);
 }
 
 RadioInstance*
 radio_instance_get(
     const char* dev,
-    const char* name)
+    const char* slot)
 {
     RadioInstance* self = NULL;
 
-    if (dev && dev[0] && name && name[0]) {
-        char* key = radio_instance_make_key(dev, name);
+    if (dev && dev[0] && slot && slot[0] && radio_instance_table) {
+        GHashTableIter it;
+        gpointer value;
 
-        if (radio_instance_table) {
-            self = g_hash_table_lookup(radio_instance_table, key);
+        /* There ain't that many instances there in practice */
+        g_hash_table_iter_init(&it, radio_instance_table);
+        while (g_hash_table_iter_next(&it, NULL, &value)) {
+            RadioInstance* radio = value;
+
+            if (!g_strcmp0(radio->dev, dev) && !g_strcmp0(radio->slot, slot)) {
+                self = radio;
+                break;
+            }
         }
-        g_free(key);
     }
     return self;
 }
@@ -724,6 +859,8 @@ radio_instance_finalize(
     g_free(priv->slot);
     g_free(priv->dev);
     g_free(priv->key);
+    g_strfreev(priv->response_ifaces);
+    g_strfreev(priv->indication_ifaces);
     G_OBJECT_CLASS(radio_instance_parent_class)->finalize(object);
 }
 

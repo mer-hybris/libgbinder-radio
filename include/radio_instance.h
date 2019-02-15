@@ -119,6 +119,30 @@ radio_instance_new(
     const char* dev,
     const char* name);
 
+/**
+ * opts is a (char*) -> (char*) hash table or NULL to use defaults.
+ * Supported keys and default values:
+ *
+ * "dev" = "/dev/hwbinder"
+ * "name" = "slot1"
+
+ * "radio-interface" =
+ * "android.hardware.radio@1.0::IRadio"
+
+ * "response-interfaces" =
+ * "android.hardware.radio@1.0::IRadioResponse,android.hidl.base@1.0::IBase"
+
+ * "indication-interfaces" =
+ * "android.hardware.radio@1.0::IRadioIndication,android.hidl.base@1.0::IBase"
+ *
+ * Multiple binder interfaces are separated with commas, the top-most
+ * interface coming first. Default interfaces can be omitted, and they
+ * are appended to the interface chain if they are missing.
+ */
+RadioInstance*
+radio_instance_new_with_opts(
+    GHashTable* opts); /* Since 1.0.2 */
+
 RadioInstance*
 radio_instance_get(
     const char* dev,
