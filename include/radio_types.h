@@ -258,6 +258,13 @@ typedef enum radio_capability_status {
 } RADIO_CAPABILITY_STATUS;
 G_STATIC_ASSERT(sizeof(RADIO_CAPABILITY_STATUS) == 4);
 
+typedef struct radio_response_info {
+    RADIO_RESP_TYPE type RADIO_ALIGNED(4);
+    guint32 serial RADIO_ALIGNED(4);
+    guint32 error RADIO_ALIGNED(4);
+} RadioResponseInfo;
+G_STATIC_ASSERT(sizeof(RadioResponseInfo) == 12);
+
 typedef struct radio_card_status {
     RADIO_CARD_STATE cardState RADIO_ALIGNED(4);
     RADIO_PIN_STATE universalPinState RADIO_ALIGNED(4);
@@ -360,7 +367,6 @@ typedef struct radio_data_call {
     gint32 mtu RADIO_ALIGNED(4);
 } RADIO_ALIGNED(8) RadioDataCall;
 G_STATIC_ASSERT(sizeof(RadioDataCall) == 120);
-#define DATA_CALL_VERSION (11)
 
 #define DATA_CALL_VERSION (11)
 

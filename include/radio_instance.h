@@ -54,12 +54,6 @@ struct radio_instance {
     const char* key;
 };
 
-typedef struct radio_response_info {
-    RADIO_RESP_TYPE type;
-    guint32 serial;
-    guint32 error;
-} RadioResponseInfo;
-
 typedef
 void
 (*RadioInstanceFunc)(
