@@ -217,14 +217,12 @@ radio_instance_response(
         } else {
             /* All other responses have RadioResponseInfo */
             GBinderReader reader;
-            GBinderBuffer* buf;
+            const RadioResponseInfo* info;
 
             gbinder_remote_request_init_reader(req, &reader);
-            buf = gbinder_reader_read_buffer(&reader);
-            GASSERT(buf && buf->size == sizeof(RadioResponseInfo));
-            if (buf && buf->size == sizeof(RadioResponseInfo)) {
+            info = gbinder_reader_read_hidl_struct(&reader, RadioResponseInfo);
+            if (info) {
                 GQuark quark = radio_instance_resp_quark(self, code);
-                const RadioResponseInfo* info = buf->data;
                 gboolean handled = FALSE;
 
                 g_signal_emit(self,
@@ -238,7 +236,6 @@ radio_instance_response(
                     radio_instance_ack(self);
                 }
             }
-            gbinder_buffer_free(buf);
         }
         *status = GBINDER_STATUS_OK;
     } else {

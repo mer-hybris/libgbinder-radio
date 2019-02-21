@@ -8,7 +8,8 @@ URL: https://github.com/mer-hybris/libgbinder-radio
 Source: %{name}-%{version}.tar.bz2
 BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(libglibutil)
-BuildRequires: pkgconfig(libgbinder)
+BuildRequires: pkgconfig(libgbinder) >= 1.0.9
+Requires: libgbinder >= 1.0.9
 Requires(post): /sbin/ldconfig
 Requires(postun): /sbin/ldconfig
 
