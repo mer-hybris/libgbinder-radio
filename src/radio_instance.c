@@ -665,7 +665,7 @@ radio_instance_add_death_handler(
     gpointer user_data)
 {
     return (G_LIKELY(self) && G_LIKELY(func)) ? g_signal_connect(self,
-        SIGNAL_ACK_NAME, G_CALLBACK(func), user_data) : 0;
+        SIGNAL_DEATH_NAME, G_CALLBACK(func), user_data) : 0;
 }
 
 void
