@@ -23,7 +23,7 @@ all: debug release pkgconfig
 
 VERSION_MAJOR = 1
 VERSION_MINOR = 0
-VERSION_RELEASE = 2
+VERSION_RELEASE = 3
 
 # Version for pkg-config
 PCVERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_RELEASE)
@@ -144,9 +144,6 @@ pkgconfig: $(PKGCONFIG)
 clean:
 	rm -f *~ $(SRC_DIR)/*~ $(INCLUDE_DIR)/*~
 	rm -fr $(BUILD_DIR) RPMS installroot
-	rm -fr debian/tmp debian/libgbinder debian/libgbinder-dev
-	rm -f documentation.list debian/files debian/*.substvars
-	rm -f debian/*.debhelper.log debian/*.debhelper debian/*~
 
 $(BUILD_DIR):
 	mkdir -p $@
@@ -199,18 +196,17 @@ $(PKGCONFIG): $(LIB_NAME).pc.in Makefile
 # Install
 #
 
-INSTALL_PERM  = 644
-
 INSTALL = install
 INSTALL_DIRS = $(INSTALL) -d
-INSTALL_FILES = $(INSTALL) -m $(INSTALL_PERM)
+INSTALL_LIBS = $(INSTALL) -m 755
+INSTALL_FILES = $(INSTALL) -m 644
 
 INSTALL_LIB_DIR = $(DESTDIR)/usr/lib
 INSTALL_INCLUDE_DIR = $(DESTDIR)/usr/include/$(NAME)
 INSTALL_PKGCONFIG_DIR = $(DESTDIR)/usr/lib/pkgconfig
 
 install: $(INSTALL_LIB_DIR)
-	$(INSTALL_FILES) $(RELEASE_SO) $(INSTALL_LIB_DIR)
+	$(INSTALL_LIBS) $(RELEASE_SO) $(INSTALL_LIB_DIR)
 	ln -sf $(LIB_SO) $(INSTALL_LIB_DIR)/$(LIB_SYMLINK2)
 	ln -sf $(LIB_SYMLINK2) $(INSTALL_LIB_DIR)/$(LIB_SYMLINK1)
 
