@@ -175,6 +175,14 @@ typedef enum radio_access_family {
 } RADIO_ACCESS_FAMILY;
 G_STATIC_ASSERT(sizeof(RADIO_ACCESS_FAMILY) == 4);
 
+typedef enum radio_apn_auth_type {
+    RADIO_APN_AUTH_NONE,
+    RADIO_APN_AUTH_PAP,
+    RADIO_APN_AUTH_CHAP,
+    RADIO_APN_AUTH_PAP_CHAP
+} RADIO_APN_AUTH_TYPE;
+G_STATIC_ASSERT(sizeof(RADIO_APN_AUTH_TYPE) == 4);
+
 typedef enum radio_card_state {
     RADIO_CARD_STATE_ABSENT,
     RADIO_CARD_STATE_PRESENT,
@@ -337,7 +345,7 @@ typedef struct radio_data_profile {
     GBinderHidlString apn RADIO_ALIGNED(8);
     GBinderHidlString protocol RADIO_ALIGNED(8);
     GBinderHidlString roamingProtocol RADIO_ALIGNED(8);
-    gint32 authType RADIO_ALIGNED(4);
+    RADIO_APN_AUTH_TYPE authType RADIO_ALIGNED(4);
     GBinderHidlString user RADIO_ALIGNED(8);
     GBinderHidlString password RADIO_ALIGNED(8);
     gint32 type RADIO_ALIGNED(4);
