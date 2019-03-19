@@ -659,6 +659,29 @@ typedef struct radio_activity_stats_info {
 } RADIO_ALIGNED(4) RadioActivityStatsInfo;
 G_STATIC_ASSERT(sizeof(RadioActivityStatsInfo) == 32);
 
+typedef struct radio_hardware_config {
+    gint32 type RADIO_ALIGNED(4);
+    GBinderHidlString uuid RADIO_ALIGNED(8);
+    gint32 state RADIO_ALIGNED(4);
+    GBinderHidlVec modem RADIO_ALIGNED(8); /* vec<RadioHardwareConfigModem> */
+    GBinderHidlVec sim RADIO_ALIGNED(8);   /* vec<RadioHardwareConfigSim> */
+} RADIO_ALIGNED(8) RadioHardwareConfig;
+G_STATIC_ASSERT(sizeof(RadioHardwareConfig) == 64);
+
+typedef struct radio_hardware_config_modem {
+    gint32 rilModel RADIO_ALIGNED(4);
+    guint32 rat RADIO_ALIGNED(4);
+    gint32 maxVoice RADIO_ALIGNED(4);
+    gint32 maxData RADIO_ALIGNED(4);
+    gint32 maxStandby RADIO_ALIGNED(4);
+} RADIO_ALIGNED(4) RadioHardwareConfigModem;
+G_STATIC_ASSERT(sizeof(RadioHardwareConfigModem) == 20);
+
+typedef struct radio_hardware_config_sim {
+    GBinderHidlString modemUuid RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioHardwareConfigSim;
+G_STATIC_ASSERT(sizeof(RadioHardwareConfigSim) == 16);
+
 /* c(req,resp,callName,CALL_NAME) */
 #define RADIO_CALL_1_0(c) \
     c(2,1,getIccCardStatus,GET_ICC_CARD_STATUS) \
