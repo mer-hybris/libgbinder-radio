@@ -183,6 +183,36 @@ typedef enum radio_apn_auth_type {
 } RADIO_APN_AUTH_TYPE;
 G_STATIC_ASSERT(sizeof(RADIO_APN_AUTH_TYPE) == 4);
 
+typedef enum radio_apn_types {
+    RADIO_APN_TYPE_NONE = 0,
+    RADIO_APN_TYPE_DEFAULT = 1 << 0,
+    RADIO_APN_TYPE_MMS = 1 << 1,
+    RADIO_APN_TYPE_SUPL = 1 << 2,
+    RADIO_APN_TYPE_DUN = 1 << 3,
+    RADIO_APN_TYPE_HIPRI = 1 << 4,
+    RADIO_APN_TYPE_FOTA = 1 << 5,
+    RADIO_APN_TYPE_IMS = 1 << 6,
+    RADIO_APN_TYPE_CBS = 1 << 7,
+    RADIO_APN_TYPE_IA = 1 << 8,
+    RADIO_APN_TYPE_EMERGENCY = 1 << 9,
+    RADIO_APN_TYPE_ALL = RADIO_APN_TYPE_DEFAULT | RADIO_APN_TYPE_MMS |
+        RADIO_APN_TYPE_SUPL | RADIO_APN_TYPE_DUN | RADIO_APN_TYPE_HIPRI |
+        RADIO_APN_TYPE_FOTA | RADIO_APN_TYPE_IMS | RADIO_APN_TYPE_CBS |
+        RADIO_APN_TYPE_IA | RADIO_APN_TYPE_EMERGENCY
+} RADIO_APN_TYPES;
+G_STATIC_ASSERT(sizeof(RADIO_APN_TYPES) == 4);
+
+typedef enum radio_data_profile_id {
+    RADIO_DATA_PROFILE_INVALID = -1,
+    RADIO_DATA_PROFILE_DEFAULT = 0,
+    RADIO_DATA_PROFILE_TETHERED = 1,
+    RADIO_DATA_PROFILE_IMS = 2,
+    RADIO_DATA_PROFILE_FOTA = 3,
+    RADIO_DATA_PROFILE_CBS = 4,
+    RADIO_DATA_PROFILE_OEM_BASE = 1000
+} RADIO_DATA_PROFILE_ID;
+G_STATIC_ASSERT(sizeof(RADIO_DATA_PROFILE_ID) == 4);
+
 typedef enum radio_card_state {
     RADIO_CARD_STATE_ABSENT,
     RADIO_CARD_STATE_PRESENT,
@@ -341,7 +371,7 @@ typedef struct radio_operator_info {
 G_STATIC_ASSERT(sizeof(RadioOperatorInfo) == 56);
 
 typedef struct radio_data_profile {
-    gint32 profileId RADIO_ALIGNED(4);
+    RADIO_DATA_PROFILE_ID profileId RADIO_ALIGNED(4);
     GBinderHidlString apn RADIO_ALIGNED(8);
     GBinderHidlString protocol RADIO_ALIGNED(8);
     GBinderHidlString roamingProtocol RADIO_ALIGNED(8);
@@ -353,8 +383,8 @@ typedef struct radio_data_profile {
     gint32 maxConns RADIO_ALIGNED(4);
     gint32 waitTime RADIO_ALIGNED(4);
     guint8 enabled RADIO_ALIGNED(1);
-    gint32 supportedApnTypesBitmap RADIO_ALIGNED(4);
-    gint32 bearerBitmap RADIO_ALIGNED(4);
+    RADIO_APN_TYPES supportedApnTypesBitmap RADIO_ALIGNED(4);
+    RADIO_ACCESS_FAMILY bearerBitmap RADIO_ALIGNED(4);
     gint32 mtu RADIO_ALIGNED(4);
     gint32 mvnoType RADIO_ALIGNED(4);
     GBinderHidlString mvnoMatchData RADIO_ALIGNED(8);
