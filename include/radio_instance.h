@@ -52,6 +52,8 @@ struct radio_instance {
     const char* dev;
     const char* slot;
     const char* key;
+    /* Since 1.0.7 */
+    GBinderRemoteObject* remote;
 };
 
 typedef

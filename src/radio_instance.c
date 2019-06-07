@@ -50,7 +50,6 @@ typedef GObjectClass RadioInstanceClass;
 struct radio_instance_priv {
     GUtilIdlePool* idle;
     GBinderClient* client;
-    GBinderRemoteObject* remote;
     GBinderLocalObject* response;
     GBinderLocalObject* indication;
     GHashTable* resp_quarks;
@@ -260,11 +259,11 @@ radio_instance_drop_binder(
         gbinder_local_object_drop(priv->response);
         priv->response = NULL;
     }
-    if (priv->remote) {
-        gbinder_remote_object_remove_handler(priv->remote, priv->death_id);
-        gbinder_remote_object_unref(priv->remote);
+    if (self->remote) {
+        gbinder_remote_object_remove_handler(self->remote, priv->death_id);
+        gbinder_remote_object_unref(self->remote);
         priv->death_id = 0;
-        priv->remote = NULL;
+        self->remote = NULL;
     }
 }
 
@@ -339,17 +338,16 @@ radio_instance_create(
             GBinderWriter writer;
 
             GINFO("Connected to %s", fqname);
-            /* get_service returns auto-released reference,
-             * we need to add a reference of our own */
-            gbinder_remote_object_ref(remote);
-
             self = g_object_new(RADIO_TYPE_INSTANCE, NULL);
             priv = self->priv;
+
+            /* get_service returns auto-released reference,
+             * we need to add a reference of our own */
+            self->remote = gbinder_remote_object_ref(remote);
             self->slot = priv->slot = g_strdup(slot);
             self->dev = priv->dev = g_strdup(dev);
             self->key = priv->key = g_strdup(key);
 
-            priv->remote = remote;
             priv->client = gbinder_client_new(remote, iface);
             priv->indication = gbinder_servicemanager_new_local_object
                 (sm, RADIO_INDICATION_1_0, radio_instance_indication, self);
