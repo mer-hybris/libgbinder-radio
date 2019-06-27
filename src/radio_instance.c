@@ -59,6 +59,7 @@ struct radio_instance_priv {
     char* dev;
     char* slot;
     char* key;
+    char* modem;
 };
 
 G_DEFINE_TYPE(RadioInstance, radio_instance, G_TYPE_OBJECT)
@@ -70,6 +71,7 @@ enum radio_instance_signal {
     SIGNAL_OBSERVE_RESPONSE,
     SIGNAL_ACK,
     SIGNAL_DEATH,
+    SIGNAL_ENABLED,
     SIGNAL_COUNT
 };
 
@@ -79,6 +81,7 @@ enum radio_instance_signal {
 #define SIGNAL_OBSERVE_RESPONSE_NAME   "radio-instance-observe-response"
 #define SIGNAL_ACK_NAME                "radio-instance-ack"
 #define SIGNAL_DEATH_NAME              "radio-instance-death"
+#define SIGNAL_ENABLED_NAME            "radio-instance-enabled"
 
 static guint radio_instance_signals[SIGNAL_COUNT] = { 0 };
 
@@ -320,7 +323,9 @@ RadioInstance*
 radio_instance_create(
     const char* dev,
     const char* slot,
-    const char* key)
+    const char* key,
+    const char* modem,
+    int slot_index)
 {
     RadioInstance* self = NULL;
     GBinderServiceManager* sm = gbinder_servicemanager_new(dev);
@@ -348,6 +353,8 @@ radio_instance_create(
             self->slot = priv->slot = g_strdup(slot);
             self->dev = priv->dev = g_strdup(dev);
             self->key = priv->key = g_strdup(key);
+            self->modem = priv->modem = g_strdup(modem);
+            self->slot_index = slot_index;
 
             priv->remote = remote;
             priv->client = gbinder_client_new(remote, iface);
@@ -401,6 +408,33 @@ radio_instance_new(
     const char* dev,
     const char* name)
 {
+    if (name && name[0]) {
+        const char* modem;
+        int slot;
+
+        if (!g_strcmp0(name, "slot1")) {
+            modem = "/ril_0";
+            slot = 0;
+        } else if (!g_strcmp0(name, "slot2")) {
+            modem = "/ril_1";
+            slot = 1;
+        } else {
+            GWARN("Unexpected slot '%s'", name);
+            modem = NULL;
+            slot = 0;
+        }
+        return radio_instance_new_with_modem_and_slot(dev, name, modem, slot);
+    }
+    return NULL;
+}
+
+RadioInstance*
+radio_instance_new_with_modem_and_slot(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot) /* Since 1.0.7 */
+{
     if (dev && dev[0] && name && name[0]) {
         char* key = radio_instance_make_key(dev, name);
         RadioInstance* self = NULL;
@@ -412,7 +446,7 @@ radio_instance_new(
             g_free(key);
             return radio_instance_ref(self);
         } else {
-            self = radio_instance_create(dev, name, key);
+            self = radio_instance_create(dev, name, key, modem, slot);
             if (self) {
                 if (!radio_instance_table) {
                     radio_instance_table = g_hash_table_new_full
@@ -593,6 +627,18 @@ radio_instance_send_request_sync(
     return FALSE;
 }
 
+void
+radio_instance_set_enabled(
+    RadioInstance* self,
+    gboolean enabled) /* Since 1.0.7 */
+{
+    if (G_LIKELY(self) && self->enabled != enabled) {
+        self->enabled = enabled;
+        GDEBUG("%s %sabled", self->slot, enabled ? "en" : "dis")
+        g_signal_emit(self, radio_instance_signals[SIGNAL_ENABLED], 0);
+    }
+}
+
 gulong
 radio_instance_add_indication_handler(
     RadioInstance* self,
@@ -668,6 +714,16 @@ radio_instance_add_death_handler(
         SIGNAL_DEATH_NAME, G_CALLBACK(func), user_data) : 0;
 }
 
+gulong
+radio_instance_add_enabled_handler(
+    RadioInstance* self,
+    RadioInstanceFunc func,
+    gpointer user_data) /* Since 1.0.7 */
+{
+    return (G_LIKELY(self) && G_LIKELY(func)) ? g_signal_connect(self,
+        SIGNAL_ENABLED_NAME, G_CALLBACK(func), user_data) : 0;
+}
+
 void
 radio_instance_remove_handler(
     RadioInstance* self,
@@ -721,6 +777,7 @@ radio_instance_finalize(
     g_free(priv->slot);
     g_free(priv->dev);
     g_free(priv->key);
+    g_free(priv->modem);
     G_OBJECT_CLASS(radio_instance_parent_class)->finalize(object);
 }
 
@@ -759,6 +816,10 @@ radio_instance_class_init(
             G_TYPE_NONE, 1, G_TYPE_UINT);
     radio_instance_signals[SIGNAL_DEATH] =
         g_signal_new(SIGNAL_DEATH_NAME, type,
+            G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
+            G_TYPE_NONE, 0);
+    radio_instance_signals[SIGNAL_ENABLED] =
+        g_signal_new(SIGNAL_ENABLED_NAME, type,
             G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
             G_TYPE_NONE, 0);
 }
