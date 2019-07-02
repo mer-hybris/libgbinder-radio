@@ -52,6 +52,10 @@ struct radio_instance {
     const char* dev;
     const char* slot;
     const char* key;
+    /* Since 1.0.7 */
+    const char* modem;  /* D-Bus path */
+    int slot_index;     /* 0 for SIM1, 1 for SIM2 and so on */
+    gboolean enabled;
 };
 
 typedef
@@ -114,6 +118,13 @@ radio_instance_new(
     const char* name);
 
 RadioInstance*
+radio_instance_new_with_modem_and_slot(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot_index); /* Since 1.0.7 */
+
+RadioInstance*
 radio_instance_get(
     const char* dev,
     const char* name);
@@ -160,6 +171,11 @@ radio_instance_send_request_sync(
     RADIO_REQ code,
     GBinderLocalRequest* args);
 
+void
+radio_instance_set_enabled(
+    RadioInstance* radio,
+    gboolean enabled); /* Since 1.0.7 */
+
 gulong
 radio_instance_add_indication_handler(
     RadioInstance* radio,
@@ -199,6 +215,12 @@ radio_instance_add_death_handler(
     RadioInstance* radio,
     RadioInstanceFunc func,
     gpointer user_data);
+
+gulong
+radio_instance_add_enabled_handler(
+    RadioInstance* radio,
+    RadioInstanceFunc func,
+    gpointer user_data); /* Since 1.0.7 */
 
 void
 radio_instance_remove_handler(
