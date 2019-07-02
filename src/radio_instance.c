@@ -634,7 +634,7 @@ radio_instance_set_enabled(
 {
     if (G_LIKELY(self) && self->enabled != enabled) {
         self->enabled = enabled;
-        GDEBUG("%s %sabled", self->slot, enabled ? "en" : "dis")
+        GDEBUG("%s %sabled", self->slot, enabled ? "en" : "dis");
         g_signal_emit(self, radio_instance_signals[SIGNAL_ENABLED], 0);
     }
 }
