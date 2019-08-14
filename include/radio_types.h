@@ -296,6 +296,13 @@ typedef enum radio_capability_status {
 } RADIO_CAPABILITY_STATUS;
 G_STATIC_ASSERT(sizeof(RADIO_CAPABILITY_STATUS) == 4);
 
+typedef enum radio_device_state {
+    RADIO_DEVICE_STATE_POWER_SAVE_MODE,
+    RADIO_DEVICE_STATE_CHARGING_STATE,
+    RADIO_DEVICE_STATE_LOW_DATA_EXPECTED
+} RADIO_DEVICE_STATE;
+G_STATIC_ASSERT(sizeof(RADIO_DEVICE_STATE) == 4);
+
 typedef struct radio_response_info {
     RADIO_RESP_TYPE type RADIO_ALIGNED(4);
     guint32 serial RADIO_ALIGNED(4);
