@@ -1,0 +1,17 @@
+Source: libgbinder-radio
+Priority: optional
+Maintainer: Danct12 <danct12@disroot.org>
+Build-Depends: debhelper (>=9), libgbinder-dev (>= 1.0.9)
+Standards-Version: 3.9.6
+
+Package: libgbinder-radio-dev
+Section: libdevel
+Architecture: any
+Depends: libgbinder-radio (= ${binary:Version}), ${misc:Depends}
+Description: Development files for libgbinder-radio
+
+Package: libgbinder-radio
+Section: libs
+Architecture: any
+Depends: libgbinder (>= 1.0.9), ${shlibs:Depends}, ${misc:Depends}
+Description: Binder client library for Android radio interfaces
