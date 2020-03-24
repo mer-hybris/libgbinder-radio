@@ -1,0 +1,9 @@
+#!/usr/bin/make -f
+# Uncomment to enable verbose build
+#export DH_VERBOSE = 1
+
+override_dh_auto_install:
+	dh_auto_install -- install-dev
+
+%:
+	dh $@ 

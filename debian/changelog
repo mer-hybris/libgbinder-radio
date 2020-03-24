@@ -1,0 +1,5 @@
+libgbinder-radio (1.0.8) unstable; urgency=medium
+
+  * Added RADIO_DEVICE_STATE enum.
+
+ -- Danct12 <danct12@disroot.org>  Tue, 24 Mar 2020 02:55:50 +0700
