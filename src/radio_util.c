@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2019 Jolla Ltd.
- * Copyright (C) 2018-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2020 Jolla Ltd.
+ * Copyright (C) 2018-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -49,6 +49,7 @@ radio_req_name(
 #define RADIO_REQ_(req,resp,Name,NAME) \
     case RADIO_REQ_##NAME: return #Name;
     RADIO_CALL_1_0(RADIO_REQ_)
+    RADIO_CALL_1_1(RADIO_REQ_)
 #undef RADIO_REQ_
     case RADIO_REQ_ANY:
         break;
@@ -65,6 +66,7 @@ radio_resp_name(
 #define RADIO_RESP_(req,resp,Name,NAME) \
     case RADIO_RESP_##NAME: return #Name "Response";
     RADIO_CALL_1_0(RADIO_RESP_)
+    RADIO_CALL_1_1(RADIO_RESP_)
 #undef RADIO_RESP_
     case RADIO_RESP_ANY:
         break;
@@ -80,6 +82,7 @@ radio_ind_name(
 #define RADIO_IND_(code,Name,NAME) \
     case RADIO_IND_##NAME: return #Name;
     RADIO_EVENT_1_0(RADIO_IND_)
+    RADIO_EVENT_1_1(RADIO_IND_)
 #undef RADIO_IND_
     case RADIO_IND_ANY:
         break;

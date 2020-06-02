@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2019 Jolla Ltd.
- * Copyright (C) 2018-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2020 Jolla Ltd.
+ * Copyright (C) 2018-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -46,9 +46,13 @@ typedef struct radio_registry RadioRegistry;
 
 #define RADIO_IFACE_PREFIX     "android.hardware.radio@"
 #define RADIO_IFACE_1_0(x)     RADIO_IFACE_PREFIX "1.0::" x
+#define RADIO_IFACE_1_1(x)     RADIO_IFACE_PREFIX "1.1::" x
 #define RADIO_1_0              RADIO_IFACE_1_0("IRadio")
+#define RADIO_1_1              RADIO_IFACE_1_1("IRadio")
 #define RADIO_RESPONSE_1_0     RADIO_IFACE_1_0("IRadioResponse")
+#define RADIO_RESPONSE_1_1     RADIO_IFACE_1_1("IRadioResponse")
 #define RADIO_INDICATION_1_0   RADIO_IFACE_1_0("IRadioIndication")
+#define RADIO_INDICATION_1_1   RADIO_IFACE_1_1("IRadioIndication")
 
 /* Types defined in types.hal */
 
@@ -850,6 +854,18 @@ G_STATIC_ASSERT(sizeof(RadioHardwareConfigSim) == 16);
     c(128,127,setIndicationFilter,SET_INDICATION_FILTER) \
     c(129,128,setSimCardPower,SET_SIM_CARD_POWER)
 
+#define RADIO_1_0_REQ_LAST RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT
+
+#define RADIO_CALL_1_1(c) \
+    c(131,130,setCarrierInfoForImsiEncryption,SET_CARRIER_INFO_FOR_IMSI_ENCRYPTION) \
+    c(132,131,setSimCardPower_1_1,SET_SIM_CARD_POWER_1_1) \
+    c(133,132,startNetworkScan,START_NETWORK_SCAN) \
+    c(134,133,stopNetworkScan,STOP_NETWORK_SCAN) \
+    c(135,134,startKeepalive,START_KEEPALIVE) \
+    c(136,135,stopKeepalive,STOP_KEEPALIVE)
+
+#define RADIO_1_1_REQ_LAST RADIO_REQ_STOP_KEEPALIVE
+
 /* e(code,eventName,EVENT_NAME) */
 #define RADIO_EVENT_1_0(e) \
     e(1,radioStateChanged,RADIO_STATE_CHANGED) \
@@ -898,14 +914,20 @@ G_STATIC_ASSERT(sizeof(RadioHardwareConfigSim) == 16);
     e(44,pcoData,PCO_DATA) \
     e(45,modemReset,MODEM_RESET)
 
+#define RADIO_EVENT_1_1(e) \
+    e(46,carrierInfoForImsiEncryption,CARRIER_INFO_FOR_IMSI_ENCRYPTION) \
+    e(47,networkScanResult,NETWORK_SCAN_RESULT) \
+    e(48,keepaliveStatus,KEEPALIVE_STATUS)
+
 typedef enum radio_req {
     RADIO_REQ_ANY = 0,
     RADIO_REQ_NONE = 0,
     RADIO_REQ_SET_RESPONSE_FUNCTIONS = 1, /* setResponseFunctions */
 #define RADIO_REQ_(req,resp,Name,NAME) RADIO_REQ_##NAME = req,
     RADIO_CALL_1_0(RADIO_REQ_)
+    RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT = 130,  /* responseAcknowledgement */
+    RADIO_CALL_1_1(RADIO_REQ_)
 #undef RADIO_REQ_
-    RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT = 130   /* responseAcknowledgement */
 } RADIO_REQ;
 
 typedef enum radio_resp {
@@ -913,8 +935,9 @@ typedef enum radio_resp {
     RADIO_RESP_NONE = 0,
 #define RADIO_RESP_(req,resp,Name,NAME) RADIO_RESP_##NAME = resp,
     RADIO_CALL_1_0(RADIO_RESP_)
+    RADIO_RESP_ACKNOWLEDGE_REQUEST = 129, /* acknowledgeRequest */
+    RADIO_CALL_1_1(RADIO_RESP_)
 #undef RADIO_RESP_
-    RADIO_RESP_ACKNOWLEDGE_REQUEST = 129
 } RADIO_RESP;
 
 typedef enum radio_ind {
@@ -922,6 +945,7 @@ typedef enum radio_ind {
     RADIO_IND_NONE = 0,
 #define RADIO_IND_(code,Name,NAME) RADIO_IND_##NAME = code,
     RADIO_EVENT_1_0(RADIO_IND_)
+    RADIO_EVENT_1_1(RADIO_IND_)
 #undef RADIO_IND_
 } RADIO_IND;
 
