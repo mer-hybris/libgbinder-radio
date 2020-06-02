@@ -2,8 +2,13 @@
 # Uncomment to enable verbose build
 #export DH_VERBOSE = 1
 
+LIBDIR=usr/lib/$(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+override_dh_auto_build:
+	dh_auto_build -- LIBDIR=$(LIBDIR) release pkgconfig debian/libgbinder-radio.install debian/libgbinder-radio-dev.install
+
 override_dh_auto_install:
-	dh_auto_install -- install-dev
+	dh_auto_install -- LIBDIR=$(LIBDIR) install-dev
 
 %:
 	dh $@ 

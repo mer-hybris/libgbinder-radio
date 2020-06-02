@@ -1,0 +1,3 @@
+debian/tmp/@LIBDIR@/libgbinder-radio.so @LIBDIR@
+debian/tmp/@LIBDIR@/pkgconfig/libgbinder-radio.pc @LIBDIR@/pkgconfig
+debian/tmp/usr/include/* usr/include
