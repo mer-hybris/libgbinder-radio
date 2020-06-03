@@ -1,3 +1,12 @@
+libgbinder-radio (1.0.10) unstable; urgency=medium
+
+  * Hide internal symbols
+  * Respect arch specific lib dir
+  * Ignore GLib deprecation warnings
+  * Added constants for android.hardware.radio@1.1 interfaces
+
+ -- Slava Monich <slava.monich@jolla.com>  Wed, 03 Jun 2020 15:24:17 +0300
+
 libgbinder-radio (1.0.9) unstable; urgency=medium
 
   * Added packaging for Debian-based distros.
