@@ -1,10 +1,10 @@
 name=gbinder-radio
-libdir=/usr/lib
+libdir=@libdir@
 includedir=/usr/include
 
 Name: libgbinder-radio
 Description: Binder client library for Android radio interfaces
-Version: [version]
-Requires: glib-2.0 libglibutil libgbinder
+Version: @version@
+Requires.private: glib-2.0 libglibutil libgbinder
 Libs: -L${libdir} -l${name}
 Cflags: -I${includedir} -I${includedir}/${name}

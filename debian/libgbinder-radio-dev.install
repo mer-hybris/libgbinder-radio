@@ -1,3 +1,0 @@
-debian/tmp/usr/lib/libgbinder-radio.so usr/lib
-include/*.h usr/include/gbinder-radio
-build/libgbinder-radio.pc usr/lib/pkgconfig

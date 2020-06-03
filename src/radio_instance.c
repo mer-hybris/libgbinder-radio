@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2019 Jolla Ltd.
- * Copyright (C) 2018-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2020 Jolla Ltd.
+ * Copyright (C) 2018-2020 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -33,6 +33,8 @@
  * are those of the authors and should not be interpreted as representing
  * any official policies, either expressed or implied.
  */
+
+#define GLIB_DISABLE_DEPRECATION_WARNINGS
 
 #include "radio_instance.h"
 #include "radio_registry_p.h"
