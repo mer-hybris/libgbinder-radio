@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2019 Jolla Ltd.
- * Copyright (C) 2018-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2021 Jolla Ltd.
+ * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -45,6 +45,13 @@ G_BEGIN_DECLS
 
 typedef struct radio_instance_priv RadioInstancePriv;
 
+typedef enum radio_interface {
+    RADIO_INTERFACE_1_0,
+    RADIO_INTERFACE_1_1,
+    RADIO_INTERFACE_1_2,
+    RADIO_INTERFACE_COUNT
+} RADIO_INTERFACE; /* Since 1.2.0 */
+
 struct radio_instance {
     GObject parent;
     RadioInstancePriv* priv;
@@ -56,6 +63,8 @@ struct radio_instance {
     const char* modem;  /* D-Bus path */
     int slot_index;     /* 0 for SIM1, 1 for SIM2 and so on */
     gboolean enabled;
+    /* Since 1.2.0 */
+    RADIO_INTERFACE version;
 };
 
 typedef
