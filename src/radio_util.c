@@ -98,10 +98,14 @@ radio_req_resp(
 #define RADIO_REQ_(req,resp,Name,NAME) \
     case RADIO_REQ_##NAME: return RADIO_RESP_##NAME;
     RADIO_CALL_1_0(RADIO_REQ_)
+    RADIO_CALL_1_1(RADIO_REQ_)
 #undef RADIO_REQ_
-    default:
-        return RADIO_RESP_NONE;
+    case RADIO_REQ_SET_RESPONSE_FUNCTIONS:
+    case RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT:
+    case RADIO_REQ_ANY:
+        break;
     }
+    return RADIO_RESP_NONE;
 }
 
 /*
