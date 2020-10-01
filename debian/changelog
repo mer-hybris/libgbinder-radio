@@ -1,3 +1,10 @@
+libgbinder-radio (1.0.11) unstable; urgency=medium
+
+  * Make library executable on RPM based systems
+  * Added req => resp mapping for radio@1.1 calls
+
+ -- Slava Monich <slava.monich@jolla.com>  Thu, 01 Oct 2020 21:04:59 +0300
+
 libgbinder-radio (1.0.10) unstable; urgency=medium
 
   * Hide internal symbols
