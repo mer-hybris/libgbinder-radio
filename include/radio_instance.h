@@ -134,9 +134,29 @@ radio_instance_new_with_modem_and_slot(
     int slot_index); /* Since 1.0.7 */
 
 RadioInstance*
+radio_instance_new_with_version(
+    const char* dev,
+    const char* name,
+    RADIO_INTERFACE version); /* Since 1.2.1 */
+
+RadioInstance*
+radio_instance_new_with_modem_slot_and_version(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot_index,
+    RADIO_INTERFACE version); /* Since 1.2.1 */
+
+RadioInstance*
 radio_instance_get(
     const char* dev,
     const char* name);
+
+RadioInstance*
+radio_instance_get_with_interface(
+    const char* dev,
+    const char* name,
+    RADIO_INTERFACE version); /* Since 1.2.1 */
 
 RadioInstance* const*
 radio_instance_get_all(

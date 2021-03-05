@@ -90,6 +90,8 @@ static guint radio_instance_signals[SIGNAL_COUNT] = { 0 };
 
 static GHashTable* radio_instance_table = NULL;
 
+#define DEFAULT_INTERFACE RADIO_INTERFACE_1_0
+
 static const GBinderClientIfaceInfo radio_iface_info[] = {
     {RADIO_1_2, RADIO_1_2_REQ_LAST },
     {RADIO_1_1, RADIO_1_1_REQ_LAST },
@@ -371,7 +373,7 @@ radio_instance_gone(
 
 static
 RadioInstance*
-radio_instance_create2(
+radio_instance_create_version(
     GBinderServiceManager* sm,
     GBinderRemoteObject* remote,
     const char* dev,
@@ -432,7 +434,8 @@ radio_instance_create(
     const char* slot,
     const char* key,
     const char* modem,
-    int slot_index)
+    int slot_index,
+    RADIO_INTERFACE max_version)
 {
     RadioInstance* self = NULL;
     GBinderServiceManager* sm = gbinder_servicemanager_new(dev);
@@ -442,16 +445,19 @@ radio_instance_create(
 
         for (i = 0; i < G_N_ELEMENTS(radio_interfaces) && !self; i++) {
             const RadioInterfaceDesc* desc = radio_interfaces + i;
-            char* fqname = g_strconcat(desc->radio_iface, "/", slot, NULL);
-            GBinderRemoteObject* obj = gbinder_servicemanager_get_service_sync
-                 (sm, fqname, NULL); /* autoreleased */
 
-             if (obj) {
-                 GINFO("Connected to %s", fqname);
-                 self = radio_instance_create2(sm, obj, dev, slot, key, modem,
-                     slot_index, desc);
-             }
-             g_free(fqname);
+            if (desc->version <= max_version) {
+                char* fqname = g_strconcat(desc->radio_iface, "/", slot, NULL);
+                GBinderRemoteObject* obj = /* autoreleased */
+                    gbinder_servicemanager_get_service_sync(sm, fqname, NULL);
+
+                if (obj) {
+                    GINFO("Connected to %s", fqname);
+                    self = radio_instance_create_version(sm, obj, dev, slot, key,
+                        modem, slot_index, desc);
+                }
+                g_free(fqname);
+            }
         }
         gbinder_servicemanager_unref(sm);
     }
@@ -462,9 +468,10 @@ static
 char*
 radio_instance_make_key(
     const char* dev,
-    const char* name)
+    const char* name,
+    RADIO_INTERFACE version)
 {
-    return g_strconcat(dev, ":", name, NULL);
+    return g_strdup_printf("%s:%s:%d", dev, name, version);
 }
 
 /*==========================================================================*
@@ -475,6 +482,26 @@ RadioInstance*
 radio_instance_new(
     const char* dev,
     const char* name)
+{
+    return radio_instance_new_with_version(dev, name, DEFAULT_INTERFACE);
+}
+
+RadioInstance*
+radio_instance_new_with_modem_and_slot(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot) /* Since 1.0.7 */
+{
+    return radio_instance_new_with_modem_slot_and_version(dev, name, modem,
+        slot, DEFAULT_INTERFACE);
+}
+
+RadioInstance*
+radio_instance_new_with_version(
+    const char* dev,
+    const char* name,
+    RADIO_INTERFACE version) /* Since 1.2.1 */
 {
     if (name && name[0]) {
         const char* modem;
@@ -491,20 +518,22 @@ radio_instance_new(
             modem = NULL;
             slot = 0;
         }
-        return radio_instance_new_with_modem_and_slot(dev, name, modem, slot);
+        return radio_instance_new_with_modem_slot_and_version(dev, name, modem,
+            slot, version);
     }
     return NULL;
 }
 
 RadioInstance*
-radio_instance_new_with_modem_and_slot(
+radio_instance_new_with_modem_slot_and_version(
     const char* dev,
     const char* name,
     const char* modem,
-    int slot) /* Since 1.0.7 */
+    int slot,
+    RADIO_INTERFACE version) /* Since 1.2.1 */
 {
     if (dev && dev[0] && name && name[0]) {
-        char* key = radio_instance_make_key(dev, name);
+        char* key = radio_instance_make_key(dev, name, version);
         RadioInstance* self = NULL;
 
         if (radio_instance_table) {
@@ -514,7 +543,7 @@ radio_instance_new_with_modem_and_slot(
             g_free(key);
             return radio_instance_ref(self);
         } else {
-            self = radio_instance_create(dev, name, key, modem, slot);
+            self = radio_instance_create(dev, name, key, modem, slot, version);
             if (self) {
                 if (!radio_instance_table) {
                     radio_instance_table = g_hash_table_new_full
@@ -536,10 +565,19 @@ radio_instance_get(
     const char* dev,
     const char* name)
 {
+    return radio_instance_get_with_interface(dev, name, DEFAULT_INTERFACE);
+}
+
+RadioInstance*
+radio_instance_get_with_interface(
+    const char* dev,
+    const char* name,
+    RADIO_INTERFACE version) /* Since 1.2.1 */
+{
     RadioInstance* self = NULL;
 
     if (dev && dev[0] && name && name[0]) {
-        char* key = radio_instance_make_key(dev, name);
+        char* key = radio_instance_make_key(dev, name, version);
 
         if (radio_instance_table) {
             self = g_hash_table_lookup(radio_instance_table, key);
