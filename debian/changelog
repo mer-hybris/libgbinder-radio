@@ -1,3 +1,9 @@
+libgbinder-radio (1.2.1) unstable; urgency=medium
+
+  * Fixed backward compatibility with radio@1.0
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 05 Mar 2021 12:33:50 +0200
+
 libgbinder-radio (1.2.0) unstable; urgency=medium
 
   * Support for radio@1.2 interfaces
