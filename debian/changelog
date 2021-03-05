@@ -1,3 +1,9 @@
+libgbinder-radio (1.2.2) unstable; urgency=medium
+
+  * Added radio_instance_get_with_version()
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 05 Mar 2021 14:00:20 +0200
+
 libgbinder-radio (1.2.1) unstable; urgency=medium
 
   * Fixed backward compatibility with radio@1.0
