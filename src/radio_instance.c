@@ -565,14 +565,23 @@ radio_instance_get(
     const char* dev,
     const char* name)
 {
-    return radio_instance_get_with_interface(dev, name, DEFAULT_INTERFACE);
+    return radio_instance_get_with_version(dev, name, DEFAULT_INTERFACE);
 }
 
 RadioInstance*
 radio_instance_get_with_interface(
     const char* dev,
     const char* name,
-    RADIO_INTERFACE version) /* Since 1.2.1 */
+    RADIO_INTERFACE version) /* 1.2.1, deprecated */
+{
+    return radio_instance_get_with_version(dev, name, version);
+}
+
+RadioInstance*
+radio_instance_get_with_version(
+    const char* dev,
+    const char* name,
+    RADIO_INTERFACE version) /* Since 1.2.2 */
 {
     RadioInstance* self = NULL;
 

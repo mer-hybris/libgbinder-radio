@@ -153,10 +153,10 @@ radio_instance_get(
     const char* name);
 
 RadioInstance*
-radio_instance_get_with_interface(
+radio_instance_get_with_version(
     const char* dev,
     const char* name,
-    RADIO_INTERFACE version); /* Since 1.2.1 */
+    RADIO_INTERFACE version); /* Since 1.2.2 */
 
 RadioInstance* const*
 radio_instance_get_all(
