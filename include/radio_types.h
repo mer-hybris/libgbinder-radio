@@ -346,16 +346,11 @@ typedef struct radio_card_status {
 G_STATIC_ASSERT(sizeof(RadioCardStatus) == 40);
 
 typedef struct radio_card_status_1_2 {
-    RADIO_CARD_STATE cardState RADIO_ALIGNED(4);
-    RADIO_PIN_STATE universalPinState RADIO_ALIGNED(4);
-    gint32 gsmUmtsSubscriptionAppIndex RADIO_ALIGNED(4);
-    gint32 cdmaSubscriptionAppIndex RADIO_ALIGNED(4);
-    gint32 imsSubscriptionAppIndex RADIO_ALIGNED(4);
-    GBinderHidlVec apps RADIO_ALIGNED(8); /* vec<RadioAppStatus> */
+    RadioCardStatus base RADIO_ALIGNED(8);
     gint32 physicalSlotId RADIO_ALIGNED(4);
     GBinderHidlString atr RADIO_ALIGNED(8);
     GBinderHidlString iccid RADIO_ALIGNED(8);
-} RADIO_ALIGNED(8) RadioCardStatus_1_2; /* Since 1.2.0 */
+} RADIO_ALIGNED(8) RadioCardStatus_1_2; /* Since 1.2.3 */
 G_STATIC_ASSERT(sizeof(RadioCardStatus_1_2) == 80);
 
 typedef struct radio_app_status {
@@ -395,21 +390,9 @@ typedef struct radio_call {
 G_STATIC_ASSERT(sizeof(RadioCall) == 88);
 
 typedef struct radio_call_1_2 {
-    RADIO_CALL_STATE state RADIO_ALIGNED(4);
-    gint32 index RADIO_ALIGNED(4);
-    gint32 toa RADIO_ALIGNED(4);
-    guint8 isMpty RADIO_ALIGNED(1);
-    guint8 isMT RADIO_ALIGNED(1);
-    guint8 als RADIO_ALIGNED(1);
-    guint8 isVoice RADIO_ALIGNED(1);
-    guint8 isVoicePrivacy RADIO_ALIGNED(1);
-    GBinderHidlString number RADIO_ALIGNED(8);
-    gint32 numberPresentation RADIO_ALIGNED(4);
-    GBinderHidlString name RADIO_ALIGNED(8);
-    gint32 namePresentation RADIO_ALIGNED(4);
-    GBinderHidlVec uusInfo RADIO_ALIGNED(8); /* vec<RadioUusInfo> */
+    RadioCall base RADIO_ALIGNED(8);
     gint32 audioQuality RADIO_ALIGNED(4);
-} RADIO_ALIGNED(8) RadioCall_1_2; /* Since 1.2.0 */
+} RADIO_ALIGNED(8) RadioCall_1_2; /* Since 1.2.3 */
 G_STATIC_ASSERT(sizeof(RadioCall_1_2) == 96);
 
 typedef struct radio_dial {
@@ -560,6 +543,12 @@ typedef struct radio_cell_info_1_2 {
 } RADIO_ALIGNED(8) RadioCellInfo_1_2; /* Since 1.2.0 */
 G_STATIC_ASSERT(sizeof(RadioCellInfo_1_2) == 112);
 
+typedef struct radio_cell_identity_operator_names {
+    GBinderHidlString alphaLong RADIO_ALIGNED(8);
+    GBinderHidlString alphaShort RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioCellIdentityOperatorNames; /* Since 1.2.0 */
+G_STATIC_ASSERT(sizeof(RadioCellIdentityOperatorNames) == 32);
+
 typedef struct radio_cell_identity_gsm {
     GBinderHidlString mcc RADIO_ALIGNED(8);
     GBinderHidlString mnc RADIO_ALIGNED(8);
@@ -569,6 +558,12 @@ typedef struct radio_cell_identity_gsm {
     guint8 bsic RADIO_ALIGNED(1);
 } RADIO_ALIGNED(8) RadioCellIdentityGsm;
 G_STATIC_ASSERT(sizeof(RadioCellIdentityGsm) == 48);
+
+typedef struct radio_cell_identity_gsm_1_2 {
+    RadioCellIdentityGsm base RADIO_ALIGNED(8);
+    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioCellIdentityGsm_1_2; /* Since 1.2.3 */
+G_STATIC_ASSERT(sizeof(RadioCellIdentityGsm_1_2) == 80);
 
 typedef struct radio_cell_identity_wcdma {
     GBinderHidlString mcc RADIO_ALIGNED(8);
@@ -580,6 +575,12 @@ typedef struct radio_cell_identity_wcdma {
 } RADIO_ALIGNED(8) RadioCellIdentityWcdma;
 G_STATIC_ASSERT(sizeof(RadioCellIdentityWcdma) == 48);
 
+typedef struct radio_cell_identity_wcdma_1_2 {
+    RadioCellIdentityWcdma base RADIO_ALIGNED(8);
+    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioCellIdentityWcdma_1_2; /* Since 1.2.3 */
+G_STATIC_ASSERT(sizeof(RadioCellIdentityWcdma_1_2) == 80);
+
 typedef struct radio_cell_identity_cdma {
     gint32 networkId RADIO_ALIGNED(4);
     gint32 systemId RADIO_ALIGNED(4);
@@ -588,6 +589,12 @@ typedef struct radio_cell_identity_cdma {
     gint32 latitude RADIO_ALIGNED(4);
 } RADIO_ALIGNED(4) RadioCellIdentityCdma;
 G_STATIC_ASSERT(sizeof(RadioCellIdentityCdma) == 20);
+
+typedef struct radio_cell_identity_cdma_1_2 {
+    RadioCellIdentityCdma base RADIO_ALIGNED(4);
+    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
+} RADIO_ALIGNED(4) RadioCellIdentityCdma_1_2; /* Since 1.2.3 */
+G_STATIC_ASSERT(sizeof(RadioCellIdentityCdma_1_2) == 56);
 
 typedef struct radio_cell_identity_lte {
     GBinderHidlString mcc RADIO_ALIGNED(8);
@@ -599,6 +606,13 @@ typedef struct radio_cell_identity_lte {
 } RADIO_ALIGNED(8) RadioCellIdentityLte;
 G_STATIC_ASSERT(sizeof(RadioCellIdentityLte) == 48);
 
+typedef struct radio_cell_identity_lte_1_2 {
+    RadioCellIdentityLte base RADIO_ALIGNED(8);
+    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
+    gint32 bandwidth RADIO_ALIGNED(4);
+} RADIO_ALIGNED(8) RadioCellIdentityLte_1_2; /* Since 1.2.3 */
+G_STATIC_ASSERT(sizeof(RadioCellIdentityLte_1_2) == 88);
+
 typedef struct radio_cell_identity_tdscdma {
     GBinderHidlString mcc RADIO_ALIGNED(8);
     GBinderHidlString mnc RADIO_ALIGNED(8);
@@ -608,65 +622,11 @@ typedef struct radio_cell_identity_tdscdma {
 } RADIO_ALIGNED(8) RadioCellIdentityTdscdma;
 G_STATIC_ASSERT(sizeof(RadioCellIdentityTdscdma) == 48);
 
-typedef struct radio_cell_identity_operator_names {
-    GBinderHidlString alphaLong RADIO_ALIGNED(8);
-    GBinderHidlString alphaShort RADIO_ALIGNED(8);
-} RADIO_ALIGNED(8) RadioCellIdentityOperatorNames; /* Since 1.2.0 */
-G_STATIC_ASSERT(sizeof(RadioCellIdentityOperatorNames) == 32);
-
-typedef struct radio_cell_identity_gsm_1_2 {
-    GBinderHidlString mcc RADIO_ALIGNED(8);
-    GBinderHidlString mnc RADIO_ALIGNED(8);
-    gint32 lac RADIO_ALIGNED(4);
-    gint32 cid RADIO_ALIGNED(4);
-    gint32 arfcn RADIO_ALIGNED(4);
-    guint8 bsic RADIO_ALIGNED(1);
-    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
-} RADIO_ALIGNED(8) RadioCellIdentityGsm_1_2; /* Since 1.2.0 */
-G_STATIC_ASSERT(sizeof(RadioCellIdentityGsm_1_2) == 80);
-
-typedef struct radio_cell_identity_wcdma_1_2 {
-    GBinderHidlString mcc RADIO_ALIGNED(8);
-    GBinderHidlString mnc RADIO_ALIGNED(8);
-    gint32 lac RADIO_ALIGNED(4);
-    gint32 cid RADIO_ALIGNED(4);
-    gint32 psc RADIO_ALIGNED(4);
-    gint32 uarfcn RADIO_ALIGNED(4);
-    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
-} RADIO_ALIGNED(8) RadioCellIdentityWcdma_1_2; /* Since 1.2.0 */
-G_STATIC_ASSERT(sizeof(RadioCellIdentityWcdma_1_2) == 80);
-
-typedef struct radio_cell_identity_cdma_1_2 {
-    gint32 networkId RADIO_ALIGNED(4);
-    gint32 systemId RADIO_ALIGNED(4);
-    gint32 baseStationId RADIO_ALIGNED(4);
-    gint32 longitude RADIO_ALIGNED(4);
-    gint32 latitude RADIO_ALIGNED(4);
-    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
-} RADIO_ALIGNED(4) RadioCellIdentityCdma_1_2; /* Since 1.2.0 */
-G_STATIC_ASSERT(sizeof(RadioCellIdentityCdma_1_2) == 56);
-
-typedef struct radio_cell_identity_lte_1_2 {
-    GBinderHidlString mcc RADIO_ALIGNED(8);
-    GBinderHidlString mnc RADIO_ALIGNED(8);
-    gint32 ci RADIO_ALIGNED(4);
-    gint32 pci RADIO_ALIGNED(4);
-    gint32 tac RADIO_ALIGNED(4);
-    gint32 earfcn RADIO_ALIGNED(4);
-    RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
-    gint32 bandwidth RADIO_ALIGNED(4);
-} RADIO_ALIGNED(8) RadioCellIdentityLte_1_2; /* Since 1.2.0 */
-G_STATIC_ASSERT(sizeof(RadioCellIdentityLte_1_2) == 88);
-
 typedef struct radio_cell_identity_tdscdma_1_2 {
-    GBinderHidlString mcc RADIO_ALIGNED(8);
-    GBinderHidlString mnc RADIO_ALIGNED(8);
-    gint32 lac RADIO_ALIGNED(4);
-    gint32 cid RADIO_ALIGNED(4);
-    gint32 cpid RADIO_ALIGNED(4);
+    RadioCellIdentityTdscdma base RADIO_ALIGNED(8);
     gint32 uarfcn RADIO_ALIGNED(8);
     RadioCellIdentityOperatorNames operatorNames RADIO_ALIGNED(8);
-} RADIO_ALIGNED(8) RadioCellIdentityTdscdma_1_2; /* Since 1.2.0 */
+} RADIO_ALIGNED(8) RadioCellIdentityTdscdma_1_2; /* Since 1.2.3 */
 G_STATIC_ASSERT(sizeof(RadioCellIdentityTdscdma_1_2) == 88);
 
 typedef struct radio_voice_reg_state_result {
@@ -704,8 +664,7 @@ typedef struct radio_signal_strength_wcdma {
 G_STATIC_ASSERT(sizeof(RadioSignalStrengthWcdma) == 8);
 
 typedef struct radio_signal_strength_wcdma_1_2 {
-    gint32 signalStrength RADIO_ALIGNED(4);
-    gint32 bitErrorRate RADIO_ALIGNED(4);
+    RadioSignalStrengthWcdma base RADIO_ALIGNED(4);
     gint32 rscp RADIO_ALIGNED(4);
     gint32 ecno RADIO_ALIGNED(4);
 } RADIO_ALIGNED(4) RadioSignalStrengthWcdma_1_2; /* Since 1.2.0 */
