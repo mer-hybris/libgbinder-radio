@@ -516,16 +516,26 @@ typedef struct radio_cell_identity {
 } RADIO_ALIGNED(8) RadioCellIdentity;
 G_STATIC_ASSERT(sizeof(RadioCellIdentity) == 88);
 
+typedef struct radio_cell_identity_1_2 {
+    RADIO_CELL_INFO_TYPE cellInfoType RADIO_ALIGNED(4);
+    GBinderHidlVec gsm RADIO_ALIGNED(8);   /* vec<RadioCellIdentityGsm_1_2> */
+    GBinderHidlVec wcdma RADIO_ALIGNED(8); /* vec<RadioCellIdentityWcdma_1_2> */
+    GBinderHidlVec cdma RADIO_ALIGNED(8);  /* vec<RadioCellIdentityCdma_1_2> */
+    GBinderHidlVec lte RADIO_ALIGNED(8);   /* vec<RadioCellIdentityLte_1_2> */
+    GBinderHidlVec tdscdma RADIO_ALIGNED(8);/*vec<RadioCellIdentityTdscdma_1_2>*/
+} RADIO_ALIGNED(8) RadioCellIdentity_1_2;  /* Since 1.2.4 */
+G_STATIC_ASSERT(sizeof(RadioCellIdentity_1_2) == 88);
+
 typedef struct radio_cell_info {
     RADIO_CELL_INFO_TYPE cellInfoType RADIO_ALIGNED(4);
     guint8 registered RADIO_ALIGNED(1);
     gint32 timeStampType RADIO_ALIGNED(4);
     guint64 timeStamp RADIO_ALIGNED(8);
-    GBinderHidlVec gsm RADIO_ALIGNED(8);     /* vec<RadioCellInfoGsm>  */
-    GBinderHidlVec cdma RADIO_ALIGNED(8);    /* vec<RadioCellInfoCdma>  */
+    GBinderHidlVec gsm RADIO_ALIGNED(8);     /* vec<RadioCellInfoGsm> */
+    GBinderHidlVec cdma RADIO_ALIGNED(8);    /* vec<RadioCellInfoCdma> */
     GBinderHidlVec lte RADIO_ALIGNED(8);     /* vec<RadioCellInfoLte> */
-    GBinderHidlVec wcdma RADIO_ALIGNED(8);   /* vec<RadioCellInfoWcdma>  */
-    GBinderHidlVec tdscdma RADIO_ALIGNED(8); /* vec<RadioCellInfoTdscdma>  */
+    GBinderHidlVec wcdma RADIO_ALIGNED(8);   /* vec<RadioCellInfoWcdma> */
+    GBinderHidlVec tdscdma RADIO_ALIGNED(8); /* vec<RadioCellInfoTdscdma> */
 } RADIO_ALIGNED(8) RadioCellInfo;
 G_STATIC_ASSERT(sizeof(RadioCellInfo) == 104);
 
@@ -534,11 +544,11 @@ typedef struct radio_cell_info_1_2 {
     guint8 registered RADIO_ALIGNED(1);
     gint32 timeStampType RADIO_ALIGNED(4);
     guint64 timeStamp RADIO_ALIGNED(8);
-    GBinderHidlVec gsm RADIO_ALIGNED(8);     /* vec<RadioCellInfoGsm>  */
-    GBinderHidlVec cdma RADIO_ALIGNED(8);    /* vec<RadioCellInfoCdma>  */
+    GBinderHidlVec gsm RADIO_ALIGNED(8);     /* vec<RadioCellInfoGsm> */
+    GBinderHidlVec cdma RADIO_ALIGNED(8);    /* vec<RadioCellInfoCdma> */
     GBinderHidlVec lte RADIO_ALIGNED(8);     /* vec<RadioCellInfoLte> */
-    GBinderHidlVec wcdma RADIO_ALIGNED(8);   /* vec<RadioCellInfoWcdma>  */
-    GBinderHidlVec tdscdma RADIO_ALIGNED(8); /* vec<RadioCellInfoTdscdma>  */
+    GBinderHidlVec wcdma RADIO_ALIGNED(8);   /* vec<RadioCellInfoWcdma> */
+    GBinderHidlVec tdscdma RADIO_ALIGNED(8); /* vec<RadioCellInfoTdscdma> */
     gint32 connectionStatus RADIO_ALIGNED(4);
 } RADIO_ALIGNED(8) RadioCellInfo_1_2; /* Since 1.2.0 */
 G_STATIC_ASSERT(sizeof(RadioCellInfo_1_2) == 112);
@@ -641,6 +651,18 @@ typedef struct radio_voice_reg_state_result {
 } RADIO_ALIGNED(8) RadioVoiceRegStateResult;
 G_STATIC_ASSERT(sizeof(RadioVoiceRegStateResult) == 120);
 
+typedef struct radio_voice_reg_state_result_1_2 {
+    RADIO_REG_STATE regState RADIO_ALIGNED(4);
+    RADIO_TECH rat RADIO_ALIGNED(4);
+    guint8 cssSupported RADIO_ALIGNED(1);
+    gint32 roamingIndicator RADIO_ALIGNED(4);
+    gint32 systemIsInPrl RADIO_ALIGNED(4);
+    gint32 defaultRoamingIndicator RADIO_ALIGNED(4);
+    gint32 reasonForDenial RADIO_ALIGNED(4);
+    RadioCellIdentity_1_2 cellIdentity RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioVoiceRegStateResult_1_2;  /* Since 1.2.4 */
+G_STATIC_ASSERT(sizeof(RadioVoiceRegStateResult_1_2) == 120);
+
 typedef struct radio_data_reg_state_result {
     RADIO_REG_STATE regState RADIO_ALIGNED(4);
     RADIO_TECH rat RADIO_ALIGNED(4);
@@ -649,6 +671,15 @@ typedef struct radio_data_reg_state_result {
     RadioCellIdentity cellIdentity RADIO_ALIGNED(8);
 } RADIO_ALIGNED(8) RadioDataRegStateResult;
 G_STATIC_ASSERT(sizeof(RadioDataRegStateResult) == 104);
+
+typedef struct radio_data_reg_state_result_1_2 {
+    RADIO_REG_STATE regState RADIO_ALIGNED(4);
+    RADIO_TECH rat RADIO_ALIGNED(4);
+    gint32 reasonDataDenied RADIO_ALIGNED(4);
+    gint32 maxDataCalls RADIO_ALIGNED(4);
+    RadioCellIdentity_1_2 cellIdentity RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioDataRegStateResult_1_2;  /* Since 1.2.4 */
+G_STATIC_ASSERT(sizeof(RadioDataRegStateResult_1_2) == 104);
 
 typedef struct radio_signal_strength_gsm {
     guint32 signalStrength RADIO_ALIGNED(4);
@@ -1101,9 +1132,11 @@ typedef enum radio_resp {
     /* android.hardware.radio@1.0::IRadioResponse */
     RADIO_CALL_1_0(RADIO_RESP_)
     RADIO_RESP_ACKNOWLEDGE_REQUEST = 129, /* acknowledgeRequest */
+    RADIO_1_0_RESP_LAST = RADIO_RESP_ACKNOWLEDGE_REQUEST, /* Since 1.2.4 */
 
     /* android.hardware.radio@1.1::IRadioResponse */
     RADIO_CALL_1_1(RADIO_RESP_)
+    RADIO_1_1_RESP_LAST = RADIO_RESP_STOP_KEEPALIVE,      /* Since 1.2.4 */
 
     /* android.hardware.radio@1.2::IRadioResponse */
     RADIO_CALL_1_2(RADIO_RESP_)
@@ -1112,7 +1145,8 @@ typedef enum radio_resp {
     RADIO_RESP_GET_CURRENT_CALLS_1_2 = 140,
     RADIO_RESP_GET_SIGNAL_STRENGTH_1_2 = 141,
     RADIO_RESP_GET_VOICE_REGISTRATION_STATE_1_2 = 142,
-    RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2 = 143
+    RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2 = 143,
+    RADIO_1_2_RESP_LAST = RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2   /* Since 1.2.4 */
 #undef RADIO_RESP_
 } RADIO_RESP;
 
@@ -1121,8 +1155,13 @@ typedef enum radio_ind {
     RADIO_IND_NONE = 0,
 #define RADIO_IND_(code,Name,NAME) RADIO_IND_##NAME = code,
     RADIO_EVENT_1_0(RADIO_IND_)
+    RADIO_1_0_IND_LAST = RADIO_IND_MODEM_RESET,  /* Since 1.2.4 */
+
     RADIO_EVENT_1_1(RADIO_IND_)
+    RADIO_1_1_IND_LAST = RADIO_IND_KEEPALIVE_STATUS,  /* Since 1.2.4 */
+
     RADIO_EVENT_1_2(RADIO_IND_)
+    RADIO_1_2_IND_LAST = RADIO_IND_CURRENT_SIGNAL_STRENGTH_1_2  /* Since 1.2.4 */
 #undef RADIO_IND_
 } RADIO_IND;
 
