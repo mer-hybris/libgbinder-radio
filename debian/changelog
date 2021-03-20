@@ -1,3 +1,9 @@
+libgbinder-radio (1.2.4) unstable; urgency=medium
+
+  * Added more radio@1.2 types
+
+ -- Slava Monich <slava.monich@jolla.com>  Sat, 20 Mar 2021 02:41:07 +0200
+
 libgbinder-radio (1.2.3) unstable; urgency=medium
 
   * Reformatted radio@1.2 types
