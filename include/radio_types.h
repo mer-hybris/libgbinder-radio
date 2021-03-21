@@ -45,18 +45,25 @@ typedef struct radio_instance RadioInstance;
 typedef struct radio_registry RadioRegistry;
 
 #define RADIO_IFACE_PREFIX     "android.hardware.radio@"
+#define RADIO_IFACE            "IRadio"
+#define RADIO_RESPONSE_IFACE   "IRadioResponse"
+#define RADIO_INDICATION_IFACE "IRadioIndication"
 #define RADIO_IFACE_1_0(x)     RADIO_IFACE_PREFIX "1.0::" x
 #define RADIO_IFACE_1_1(x)     RADIO_IFACE_PREFIX "1.1::" x
 #define RADIO_IFACE_1_2(x)     RADIO_IFACE_PREFIX "1.2::" x
-#define RADIO_1_0              RADIO_IFACE_1_0("IRadio")
-#define RADIO_1_1              RADIO_IFACE_1_1("IRadio")
-#define RADIO_1_2              RADIO_IFACE_1_2("IRadio")
-#define RADIO_RESPONSE_1_0     RADIO_IFACE_1_0("IRadioResponse")
-#define RADIO_RESPONSE_1_1     RADIO_IFACE_1_1("IRadioResponse")
-#define RADIO_RESPONSE_1_2     RADIO_IFACE_1_2("IRadioResponse")
-#define RADIO_INDICATION_1_0   RADIO_IFACE_1_0("IRadioIndication")
-#define RADIO_INDICATION_1_1   RADIO_IFACE_1_1("IRadioIndication")
-#define RADIO_INDICATION_1_2   RADIO_IFACE_1_2("IRadioIndication")
+#define RADIO_IFACE_1_3(x)     RADIO_IFACE_PREFIX "1.3::" x
+#define RADIO_1_0              RADIO_IFACE_1_0(RADIO_IFACE)
+#define RADIO_1_1              RADIO_IFACE_1_1(RADIO_IFACE)
+#define RADIO_1_2              RADIO_IFACE_1_2(RADIO_IFACE)
+#define RADIO_1_3              RADIO_IFACE_1_3(RADIO_IFACE)
+#define RADIO_RESPONSE_1_0     RADIO_IFACE_1_0(RADIO_RESPONSE_IFACE)
+#define RADIO_RESPONSE_1_1     RADIO_IFACE_1_1(RADIO_RESPONSE_IFACE)
+#define RADIO_RESPONSE_1_2     RADIO_IFACE_1_2(RADIO_RESPONSE_IFACE)
+#define RADIO_RESPONSE_1_3     RADIO_IFACE_1_3(RADIO_RESPONSE_IFACE)
+#define RADIO_INDICATION_1_0   RADIO_IFACE_1_0(RADIO_INDICATION_IFACE)
+#define RADIO_INDICATION_1_1   RADIO_IFACE_1_1(RADIO_INDICATION_IFACE)
+#define RADIO_INDICATION_1_2   RADIO_IFACE_1_2(RADIO_INDICATION_IFACE)
+#define RADIO_INDICATION_1_3   RADIO_IFACE_1_3(RADIO_INDICATION_IFACE)
 
 /* Types defined in types.hal */
 
@@ -1039,6 +1046,11 @@ G_STATIC_ASSERT(sizeof(RadioHardwareConfigSim) == 16);
     c(139,138,setSignalStrengthReportingCriteria,SET_SIGNAL_STRENGTH_REPORTING_CRITERIA) \
     c(140,139,setLinkCapacityReportingCriteria,SET_LINK_CAPACITY_REPORTING_CRITERIA)
 
+#define RADIO_CALL_1_3(c) /* Since 1.2.5 */ \
+    c(143,144,setSystemSelectionChannels,SET_SYSTEM_SELECTION_CHANNELS) \
+    c(144,145,enableModem,ENABLE_MODEM) \
+    c(145,146,getModemStackStatus,GET_MODEM_STACK_STATUS)
+
 /* e(code,eventName,EVENT_NAME) */
 #define RADIO_EVENT_1_0(e) \
     e(1,radioStateChanged,RADIO_STATE_CHANGED) \
@@ -1120,7 +1132,11 @@ typedef enum radio_req {
     RADIO_REQ_SET_INDICATION_FILTER_1_2 = 138,
     RADIO_REQ_SETUP_DATA_CALL_1_2 = 141,
     RADIO_REQ_DEACTIVATE_DATA_CALL_1_2 = 142,
-    RADIO_1_2_REQ_LAST = RADIO_REQ_DEACTIVATE_DATA_CALL_1_2
+    RADIO_1_2_REQ_LAST = RADIO_REQ_DEACTIVATE_DATA_CALL_1_2,
+
+    /* android.hardware.radio@1.3::IRadio */
+    RADIO_CALL_1_3(RADIO_REQ_) /* Since 1.2.5 */
+    RADIO_1_3_REQ_LAST = RADIO_REQ_GET_MODEM_STACK_STATUS
 #undef RADIO_REQ_
 } RADIO_REQ;
 
@@ -1146,7 +1162,11 @@ typedef enum radio_resp {
     RADIO_RESP_GET_SIGNAL_STRENGTH_1_2 = 141,
     RADIO_RESP_GET_VOICE_REGISTRATION_STATE_1_2 = 142,
     RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2 = 143,
-    RADIO_1_2_RESP_LAST = RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2   /* Since 1.2.4 */
+    RADIO_1_2_RESP_LAST = RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2, /* Since 1.2.4 */
+
+    /* android.hardware.radio@1.3::IRadioResponse */
+    RADIO_CALL_1_3(RADIO_RESP_) /* Since 1.2.5 */
+    RADIO_1_3_RESP_LAST = RADIO_RESP_GET_MODEM_STACK_STATUS
 #undef RADIO_RESP_
 } RADIO_RESP;
 
@@ -1161,7 +1181,8 @@ typedef enum radio_ind {
     RADIO_1_1_IND_LAST = RADIO_IND_KEEPALIVE_STATUS,  /* Since 1.2.4 */
 
     RADIO_EVENT_1_2(RADIO_IND_)
-    RADIO_1_2_IND_LAST = RADIO_IND_CURRENT_SIGNAL_STRENGTH_1_2  /* Since 1.2.4 */
+    RADIO_1_2_IND_LAST = RADIO_IND_CURRENT_SIGNAL_STRENGTH_1_2, /* Since 1.2.4 */
+    RADIO_1_3_IND_LAST = RADIO_1_2_IND_LAST /* Since 1.2.5 */
 #undef RADIO_IND_
 } RADIO_IND;
 

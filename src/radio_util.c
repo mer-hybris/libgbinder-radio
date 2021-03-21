@@ -51,11 +51,12 @@ radio_req_name(
     RADIO_CALL_1_0(RADIO_REQ_)
     RADIO_CALL_1_1(RADIO_REQ_)
     RADIO_CALL_1_2(RADIO_REQ_)
+    RADIO_CALL_1_3(RADIO_REQ_)
 #undef RADIO_REQ_
-    case RADIO_REQ_START_NETWORK_SCAN_1_2:    return "startNetworkScan_1_2";
-    case RADIO_REQ_SET_INDICATION_FILTER_1_2: return "setIndicationFilter_1_2";
-    case RADIO_REQ_SETUP_DATA_CALL_1_2:       return "setupDataCall_1_2";
-    case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:  return "deactivateDataCall_1_2";
+    case RADIO_REQ_START_NETWORK_SCAN_1_2:     return "startNetworkScan_1_2";
+    case RADIO_REQ_SET_INDICATION_FILTER_1_2:  return "setIndicationFilter_1_2";
+    case RADIO_REQ_SETUP_DATA_CALL_1_2:        return "setupDataCall_1_2";
+    case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:   return "deactivateDataCall_1_2";
     case RADIO_REQ_ANY:
         break;
     }
@@ -73,6 +74,7 @@ radio_resp_name(
     RADIO_CALL_1_0(RADIO_RESP_)
     RADIO_CALL_1_1(RADIO_RESP_)
     RADIO_CALL_1_2(RADIO_RESP_)
+    RADIO_CALL_1_3(RADIO_RESP_)
 #undef RADIO_RESP_
     case RADIO_RESP_GET_CELL_INFO_LIST_1_2:
         return "getCellInfoListResponse_1_2";
@@ -109,6 +111,17 @@ radio_ind_name(
     return NULL;
 }
 
+/**
+ * This function no longer makes as much sense as it did in IRadio 1.0 times.
+ * Later it turned out that that same call may produce different responses
+ * under different circumstances. For example, getIccCardStatus call may
+ * cause getIccCardStatusResponse or getIccCardStatusResponse_1_2 to be
+ * sent back, depending on which interfaces are supported by the caller.
+ * There's no longer one-to-one match between requests and responses,
+ * that would be too easy and straightforward for Google designers :)
+ *
+ * Use this function carefully or better don't use it at all.
+ */
 RADIO_RESP
 radio_req_resp(
     RADIO_REQ req)
@@ -119,6 +132,7 @@ radio_req_resp(
     RADIO_CALL_1_0(RADIO_REQ_)
     RADIO_CALL_1_1(RADIO_REQ_)
     RADIO_CALL_1_2(RADIO_REQ_)
+    RADIO_CALL_1_3(RADIO_REQ_)
 #undef RADIO_REQ_
     case RADIO_REQ_SET_RESPONSE_FUNCTIONS:
     case RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT:
