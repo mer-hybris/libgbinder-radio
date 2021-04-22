@@ -209,9 +209,7 @@ radio_instance_indication(
     RadioInstance* self = RADIO_INSTANCE(user_data);
     const char* iface = gbinder_remote_request_interface(req);
 
-    if (!g_strcmp0(iface, RADIO_INDICATION_1_0) ||
-        !g_strcmp0(iface, RADIO_INDICATION_1_1) ||
-        !g_strcmp0(iface, RADIO_INDICATION_1_2)) {
+    if (gutil_strv_contains((const GStrV*)radio_indication_ifaces, iface)) {
         GBinderReader reader;
         guint type;
 
