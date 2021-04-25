@@ -560,13 +560,13 @@ typedef struct radio_sms_write_args {
 } RADIO_ALIGNED(8) RadioSmsWriteArgs;
 G_STATIC_ASSERT(sizeof(RadioSmsWriteArgs) == 40);
 
-typedef struct GsmSmsMessage {
+typedef struct radio_gsm_sms_message {
     GBinderHidlString smscPdu RADIO_ALIGNED(8);
     GBinderHidlString pdu RADIO_ALIGNED(8);
 } RADIO_ALIGNED(8) RadioGsmSmsMessage;
 G_STATIC_ASSERT(sizeof(RadioGsmSmsMessage) == 32);
 
-typedef struct SendSmsResult {
+typedef struct radio_send_sms_result {
     gint32 messageRef RADIO_ALIGNED(4);
     GBinderHidlString ackPDU RADIO_ALIGNED(8);
     gint32 errorCode RADIO_ALIGNED(4);
@@ -585,6 +585,17 @@ typedef struct radio_icc_io {
     GBinderHidlString aid RADIO_ALIGNED(8);
 } RADIO_ALIGNED(8) RadioIccIo;
 G_STATIC_ASSERT(sizeof(RadioIccIo) == 88);
+
+typedef struct radio_sim_apdu {
+    gint32 sessionId RADIO_ALIGNED(4);
+    gint32 cla RADIO_ALIGNED(4);
+    gint32 instruction RADIO_ALIGNED(4);
+    gint32 p1 RADIO_ALIGNED(4);
+    gint32 p2 RADIO_ALIGNED(4);
+    gint32 p3 RADIO_ALIGNED(4);
+    GBinderHidlString data RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioSimApdu;
+G_STATIC_ASSERT(sizeof(RadioSimApdu) == 40); /* Since 1.2.6 */
 
 typedef struct radio_icc_io_result {
     gint32 sw1 RADIO_ALIGNED(4);
