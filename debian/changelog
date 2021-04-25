@@ -1,3 +1,9 @@
+libgbinder-radio (1.2.6) unstable; urgency=medium
+
+  * Added RadioSimApdu type
+
+ -- Slava Monich <slava.monich@jolla.com>  Sun, 25 Apr 2021 14:41:32 +0300
+
 libgbinder-radio (1.2.5) unstable; urgency=medium
 
   * Added radio@1.3 types
