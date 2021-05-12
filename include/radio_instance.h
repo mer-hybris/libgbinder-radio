@@ -49,6 +49,8 @@ typedef enum radio_interface {
     RADIO_INTERFACE_1_0,
     RADIO_INTERFACE_1_1,
     RADIO_INTERFACE_1_2,
+    RADIO_INTERFACE_1_3,
+    RADIO_INTERFACE_1_4,
     RADIO_INTERFACE_COUNT
 } RADIO_INTERFACE; /* Since 1.2.0 */
 
