@@ -1008,9 +1008,9 @@ typedef struct radio_cell_info_nr {
 G_STATIC_ASSERT(sizeof(RadioCellInfoNr) == 112);
 
 typedef struct radio_cell_info_1_4 {
+    guint32 registered RADIO_ALIGNED(1);
+    guint32 connectionStatus RADIO_ALIGNED(4);
     guint8 cellInfoType RADIO_ALIGNED(1);
-    guint8 registered RADIO_ALIGNED(1);
-    RADIO_CELL_CONNECTION_STATUS connectionStatus RADIO_ALIGNED(4);
     union {
         RadioCellInfoGsm_1_2 gsm RADIO_ALIGNED(8);
         RadioCellInfoCdma_1_2 cdma RADIO_ALIGNED(8);
@@ -1020,7 +1020,7 @@ typedef struct radio_cell_info_1_4 {
         RadioCellInfoNr nr RADIO_ALIGNED(8);
     } info RADIO_ALIGNED(8);
 } RADIO_ALIGNED(8) RadioCellInfo_1_4; /* Since 1.2.5 */
-G_STATIC_ASSERT(sizeof(RadioCellInfo_1_4) == 128);
+G_STATIC_ASSERT(sizeof(RadioCellInfo_1_4) == 136);
 
 typedef struct radio_gsm_broadcast_sms_config {
     gint32 fromServiceId RADIO_ALIGNED(4);
