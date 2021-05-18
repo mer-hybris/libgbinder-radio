@@ -93,24 +93,33 @@ static GHashTable* radio_instance_table = NULL;
 #define DEFAULT_INTERFACE RADIO_INTERFACE_1_0
 
 static const GBinderClientIfaceInfo radio_iface_info[] = {
+    {RADIO_1_4, RADIO_1_4_REQ_LAST },
+    {RADIO_1_3, RADIO_1_3_REQ_LAST },
     {RADIO_1_2, RADIO_1_2_REQ_LAST },
     {RADIO_1_1, RADIO_1_1_REQ_LAST },
     {RADIO_1_0, RADIO_1_0_REQ_LAST }
 };
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_iface_info) == RADIO_INTERFACE_COUNT);
 
 static const char* const radio_indication_ifaces[] = {
+    RADIO_INDICATION_1_4,
+    RADIO_INDICATION_1_3,
     RADIO_INDICATION_1_2,
     RADIO_INDICATION_1_1,
     RADIO_INDICATION_1_0,
     NULL
 };
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_indication_ifaces) == RADIO_INTERFACE_COUNT + 1);
 
 static const char* const radio_response_ifaces[] = {
+    RADIO_RESPONSE_1_4,
+    RADIO_RESPONSE_1_3,
     RADIO_RESPONSE_1_2,
     RADIO_RESPONSE_1_1,
     RADIO_RESPONSE_1_0,
     NULL
 };
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_response_ifaces) == RADIO_INTERFACE_COUNT + 1);
 
 typedef struct radio_interface_desc {
     RADIO_INTERFACE version;
@@ -119,24 +128,21 @@ typedef struct radio_interface_desc {
     const char* const* resp_ifaces;
 } RadioInterfaceDesc;
 
+#define RADIO_INTERFACE_INDEX(x) (RADIO_INTERFACE_COUNT - x - 1)
+
+#define RADIO_INTERFACE_DESC(v) \
+        RADIO_INTERFACE_##v, RADIO_##v, \
+        radio_indication_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
+        radio_response_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v)
+
 static const RadioInterfaceDesc radio_interfaces[] = {
-    {
-        RADIO_INTERFACE_1_2,
-        RADIO_1_2,
-        radio_indication_ifaces + 0,
-        radio_response_ifaces + 0,
-    },{
-        RADIO_INTERFACE_1_1,
-        RADIO_1_1,
-        radio_indication_ifaces + 1,
-        radio_response_ifaces + 1
-    },{
-        RADIO_INTERFACE_1_0,
-        RADIO_1_0,
-        radio_indication_ifaces + 2,
-        radio_response_ifaces + 2
-    }
+   { RADIO_INTERFACE_DESC(1_4) },
+   { RADIO_INTERFACE_DESC(1_3) },
+   { RADIO_INTERFACE_DESC(1_2) },
+   { RADIO_INTERFACE_DESC(1_1) },
+   { RADIO_INTERFACE_DESC(1_0) }
 };
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_interfaces) == RADIO_INTERFACE_COUNT);
 
 /*==========================================================================*
  * Implementation
