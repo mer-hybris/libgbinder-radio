@@ -147,6 +147,16 @@ typedef enum radio_cell_info_type {
 } RADIO_CELL_INFO_TYPE;
 G_STATIC_ASSERT(sizeof(RADIO_CELL_INFO_TYPE) == 4);
 
+/* Cast guint8 RadioCellInfo_1_4.cellInfoType to this. */
+typedef enum radio_cell_info_type_1_4 {
+    RADIO_CELL_INFO_1_4_GSM = 0,
+    RADIO_CELL_INFO_1_4_CDMA,
+    RADIO_CELL_INFO_1_4_WCDMA,
+    RADIO_CELL_INFO_1_4_TD_SCDMA,
+    RADIO_CELL_INFO_1_4_LTE,
+    RADIO_CELL_INFO_1_4_NR
+} RADIO_CELL_INFO_TYPE_1_4;
+
 typedef enum radio_tech {
     RADIO_TECH_UNKNOWN = 0,
     RADIO_TECH_GPRS,
@@ -1010,7 +1020,7 @@ G_STATIC_ASSERT(sizeof(RadioCellInfoNr) == 112);
 typedef struct radio_cell_info_1_4 {
     guint32 registered RADIO_ALIGNED(1);
     guint32 connectionStatus RADIO_ALIGNED(4);
-    guint8 cellInfoType RADIO_ALIGNED(1);
+    guint8 cellInfoType RADIO_ALIGNED(1); /* RADIO_CELL_INFO_TYPE_1_4 */
     union {
         RadioCellInfoGsm_1_2 gsm RADIO_ALIGNED(8);
         RadioCellInfoCdma_1_2 cdma RADIO_ALIGNED(8);
