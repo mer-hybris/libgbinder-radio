@@ -155,7 +155,7 @@ typedef enum radio_cell_info_type_1_4 {
     RADIO_CELL_INFO_1_4_TD_SCDMA,
     RADIO_CELL_INFO_1_4_LTE,
     RADIO_CELL_INFO_1_4_NR
-} RADIO_CELL_INFO_TYPE_1_4;
+} RADIO_CELL_INFO_TYPE_1_4; /* Since 1.4.1 */
 
 typedef enum radio_tech {
     RADIO_TECH_UNKNOWN = 0,
