@@ -427,7 +427,8 @@ radio_instance_create_version(
      * Don't destroy GBinderServiceManager right away in case if we
      * have another slot to initialize.
      */
-    gutil_idle_pool_add_object(priv->idle, g_object_ref(sm));
+    gutil_idle_pool_add(priv->idle, gbinder_servicemanager_ref(sm),
+        (GDestroyNotify) gbinder_servicemanager_unref);
     return self;
 }
 
