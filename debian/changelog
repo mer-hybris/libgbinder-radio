@@ -1,3 +1,10 @@
+libgbinder-radio (1.4.2) unstable; urgency=medium
+
+  * Don't assume that GBinderServiceManager is a GObject
+  * Added unit tests
+
+ -- Slava Monich <slava.monich@jolla.com>  Sun, 12 Sep 2021 18:05:19 +0300
+
 libgbinder-radio (1.4.1) unstable; urgency=medium
 
   * Added RADIO_CELL_INFO_TYPE_1_4 enum
