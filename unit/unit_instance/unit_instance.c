@@ -402,7 +402,7 @@ test_ind(
 
     /* No signals issued and no acks sent */
     g_assert_cmpint(code[0], == ,RADIO_IND_RIL_CONNECTED);
-    g_assert_cmpint(code[0], == ,RADIO_IND_RIL_CONNECTED);
+    g_assert_cmpint(code[1], == ,RADIO_IND_RIL_CONNECTED);
     g_assert_cmpint(test_service_req_count(&service,
         RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,0);
 
