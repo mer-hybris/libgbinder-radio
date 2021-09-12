@@ -1,7 +1,8 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release coverage
+.PHONY: clean all debug release coverage test
 .PHONY: debug_lib release_lib coverage_lib
+.PHONY: print_debug_lib print_release_lib print_coverage_lib
 .PHONY: pkgconfig install install-dev
 
 
@@ -138,13 +139,26 @@ coverage_lib: $(COVERAGE_LIB)
 
 pkgconfig: $(PKGCONFIG)
 
+print_debug_lib:
+	@echo $(DEBUG_LIB)
+
+print_release_lib:
+	@echo $(RELEASE_LIB)
+
+print_coverage_lib:
+	@echo $(COVERAGE_LIB)
+
 clean:
+	make -C unit clean
 	rm -f *~ $(SRC_DIR)/*~ $(INCLUDE_DIR)/*~
 	rm -fr $(BUILD_DIR) RPMS installroot
 	rm -fr debian/tmp debian/libgbinder-radio debian/libgbinder-radio-dev
 	rm -f documentation.list debian/files debian/*.substvars
 	rm -f debian/*.debhelper.log debian/*.debhelper debian/*~
 	rm -f debian/*.install
+
+test:
+	make -C unit test
 
 $(BUILD_DIR):
 	mkdir -p $@

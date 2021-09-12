@@ -8,6 +8,8 @@ debian/*.substvars
 debian/*.install
 debian/tmp
 documentation.list
+unit/coverage/*.gcov
+unit/coverage/report
 installroot
 build
 RPMS

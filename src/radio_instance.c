@@ -263,24 +263,25 @@ radio_instance_response(
     const char* iface = gbinder_remote_request_interface(req);
 
     if (gutil_strv_contains((const GStrV*)radio_response_ifaces, iface)) {
+        GBinderReader reader;
+
         /* All these should be one-way transactions */
         GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
+        gbinder_remote_request_init_reader(req, &reader);
         if (code == RADIO_RESP_ACKNOWLEDGE_REQUEST) {
             /* oneway acknowledgeRequest(int32_t serial) */
             gint32 serial;
 
             GDEBUG("%s %u acknowledgeRequest", iface, code);
-            if (gbinder_remote_request_read_int32(req, &serial)) {
+            if (gbinder_reader_read_int32(&reader, &serial)) {
                 g_signal_emit(self, radio_instance_signals[SIGNAL_ACK], 0,
                     serial);
             }
         } else {
             /* All other responses have RadioResponseInfo */
-            GBinderReader reader;
-            const RadioResponseInfo* info;
+            const RadioResponseInfo* info =
+                gbinder_reader_read_hidl_struct(&reader, RadioResponseInfo);
 
-            gbinder_remote_request_init_reader(req, &reader);
-            info = gbinder_reader_read_hidl_struct(&reader, RadioResponseInfo);
             if (info) {
                 GQuark quark = radio_instance_resp_quark(self, code);
                 gboolean handled = FALSE;
@@ -369,7 +370,6 @@ radio_instance_gone(
 {
     char* key = key_ptr;
 
-    GASSERT(radio_instance_table);
     GVERBOSE_("%s", key);
     radio_instance_remove(key);
     g_free(key);
@@ -427,7 +427,8 @@ radio_instance_create_version(
      * Don't destroy GBinderServiceManager right away in case if we
      * have another slot to initialize.
      */
-    gutil_idle_pool_add_object(priv->idle, g_object_ref(sm));
+    gutil_idle_pool_add(priv->idle, gbinder_servicemanager_ref(sm),
+        (GDestroyNotify) gbinder_servicemanager_unref);
     return self;
 }
 
@@ -457,8 +458,8 @@ radio_instance_create(
 
                 if (obj) {
                     GINFO("Connected to %s", fqname);
-                    self = radio_instance_create_version(sm, obj, dev, slot, key,
-                        modem, slot_index, desc);
+                    self = radio_instance_create_version(sm, obj, dev, slot,
+                        key, modem, slot_index, desc);
                 }
                 g_free(fqname);
             }
@@ -589,12 +590,10 @@ radio_instance_get_with_version(
 {
     RadioInstance* self = NULL;
 
-    if (dev && dev[0] && name && name[0]) {
+    if (dev && dev[0] && name && name[0] && radio_instance_table) {
         char* key = radio_instance_make_key(dev, name, version);
 
-        if (radio_instance_table) {
-            self = g_hash_table_lookup(radio_instance_table, key);
-        }
+        self = g_hash_table_lookup(radio_instance_table, key);
         g_free(key);
     }
     return self;
@@ -702,7 +701,6 @@ radio_instance_ind_name(
         return NULL;
     }
 }
-
 
 gboolean
 radio_instance_is_dead(
