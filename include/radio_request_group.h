@@ -34,80 +34,58 @@
  * any official policies, either expressed or implied.
  */
 
-#include "test_gbinder.h"
+#ifndef RADIO_REQUEST_GROUP_H
+#define RADIO_REQUEST_GROUP_H
 
-struct gbinder_local_reply {
-    guint32 refcount;
-    TestGBinderData* data;
-    char* iface;
+/* This API exists since 1.4.3 */
+
+#include <radio_types.h>
+
+/*
+ * In addition to being just a group of requests and making it easier
+ * to perform bulk operations (i.e. cancel all), RadioRequestGroup can
+ * be given the "blocker" status by its RadioClient and then only requests
+ * belonging to this group will be submitted until the block is released.
+ */
+
+G_BEGIN_DECLS
+
+struct radio_request_group {
+    RadioClient* client;
 };
 
-static
-void
-test_gbinder_local_reply_free(
-    GBinderLocalReply* self)
-{
-    test_gbinder_data_unref(self->data);
-    g_free(self->iface);
-    g_free(self);
-}
+RadioRequestGroup*
+radio_request_group_new(
+    RadioClient* client)
+    G_GNUC_WARN_UNUSED_RESULT;
 
-/*==========================================================================*
- * Internal API
- *==========================================================================*/
-
-GBinderLocalReply*
-test_gbinder_local_reply_new(
-    void)
-{
-    GBinderLocalReply* self = g_new0(GBinderLocalReply, 1);
-
-    g_atomic_int_set(&self->refcount, 1);
-    self->data = test_gbinder_data_new(NULL);
-    return self;
-}
-
-TestGBinderData*
-test_gbinder_local_reply_data(
-    GBinderLocalReply* self)
-{
-    return self ? self->data : NULL;
-}
-
-/*==========================================================================*
- * libgbinder API
- *==========================================================================*/
-
-GBinderLocalReply*
-gbinder_local_reply_ref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        g_atomic_int_inc(&self->refcount);
-    }
-    return self;
-}
+RadioRequestGroup*
+radio_request_group_ref(
+    RadioRequestGroup* group);
 
 void
-gbinder_local_reply_unref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        if (g_atomic_int_dec_and_test(&self->refcount)) {
-            test_gbinder_local_reply_free(self);
-        }
-    }
-}
+radio_request_group_unref(
+    RadioRequestGroup* group);
 
 void
-gbinder_local_reply_init_writer(
-    GBinderLocalReply* self,
-    GBinderWriter* writer)
-{
-    test_gbinder_data_init_writer(self->data, writer);
-}
+radio_request_group_cancel(
+    RadioRequestGroup* group);
+
+RADIO_BLOCK
+radio_request_group_block_status(
+    RadioRequestGroup* group);
+
+RADIO_BLOCK
+radio_request_group_block(
+    RadioRequestGroup* group);
+
+void
+radio_request_group_unblock(
+    RadioRequestGroup* group);
+
+G_END_DECLS
+
+#endif /* RADIO_REQUEST_GROUP_H */
 
 /*
  * Local Variables:

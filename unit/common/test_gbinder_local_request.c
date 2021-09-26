@@ -64,7 +64,7 @@ test_gbinder_local_request_new(
 
     g_assert(iface);
     g_atomic_int_set(&self->refcount, 1);
-    self->data = test_gbinder_data_new();
+    self->data = test_gbinder_data_new(iface);
     self->iface = g_strdup(iface);
     return self;
 }

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2020 Jolla Ltd.
- * Copyright (C) 2018-2020 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2021 Jolla Ltd.
+ * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -37,17 +37,18 @@
 #ifndef RADIO_REGISTRY_PRIVATE_H
 #define RADIO_REGISTRY_PRIVATE_H
 
+#include "radio_types_p.h"
 #include "radio_registry.h"
 
 void
 radio_registry_instance_added(
     RadioInstance* instance)
-    G_GNUC_INTERNAL;
+    RADIO_INTERNAL;
 
 void
 radio_registry_instance_removed(
     const char* key)
-    G_GNUC_INTERNAL;
+    RADIO_INTERNAL;
 
 #endif /* RADIO_REGISTRY_PRIVATE_H */
 

@@ -41,7 +41,7 @@ typedef struct test_gbinder_data TestGBinderData;
 
 TestGBinderData*
 test_gbinder_data_new(
-    void);
+    const char* iface);
 
 TestGBinderData*
 test_gbinder_data_ref(

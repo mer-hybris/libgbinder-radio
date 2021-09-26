@@ -50,6 +50,7 @@ typedef struct test_gbinder_client_tx {
 
 typedef struct test_gbinder_client_iface_range {
     char* iface;
+    GBytes* header;
     guint32 last_code;
 } TestGBinderClientIfaceRange;
 
@@ -68,7 +69,10 @@ test_gbinder_client_free(
     guint i;
 
     for (i = 0; i < self->nr; i++) {
-        g_free(self->ranges[i].iface);
+        TestGBinderClientIfaceRange* r = self->ranges + i;
+
+        g_bytes_unref(r->header);
+        g_free(r->iface);
     }
     g_free(self->ranges);
     gbinder_remote_object_unref(self->remote);
@@ -81,6 +85,7 @@ test_gbinder_client_init_range(
     TestGBinderClientIfaceRange* r,
     const GBinderClientIfaceInfo* info)
 {
+    r->header = g_bytes_new(info->iface, strlen(info->iface));
     r->iface = g_strdup(info->iface);
     r->last_code = info->last_code;
 }
@@ -183,7 +188,9 @@ test_gbinder_client_tx_handle(
     GBinderRemoteReply* reply = test_gbinder_client_transact
         (tx->client, tx->code, tx->flags, tx->req, &status);
 
-    tx->reply(tx->client, reply, status, tx->user_data);
+    if (tx->reply) {
+        tx->reply(tx->client, reply, status, tx->user_data);
+    }
     gbinder_remote_reply_unref(reply);
     return G_SOURCE_REMOVE;
 }
@@ -260,6 +267,22 @@ gbinder_client_unref(
             test_gbinder_client_free(self);
         }
     }
+}
+
+GBytes*
+gbinder_client_rpc_header(
+    GBinderClient* self,
+    guint32 code)
+{
+    if (self) {
+        const TestGBinderClientIfaceRange* r =
+            test_gbinder_client_find_range(self, code);
+
+        if (r) {
+            return r->header;
+        }
+    }
+    return NULL;
 }
 
 GBinderLocalRequest*
@@ -354,7 +377,9 @@ gbinder_client_cancel(
     GBinderClient* self,
     gulong id)
 {
-    g_source_remove((guint)id);
+    if (id) {
+        g_source_remove((guint)id);
+    }
 }
 
 /*

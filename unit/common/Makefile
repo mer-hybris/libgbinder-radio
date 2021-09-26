@@ -1,7 +1,8 @@
 # -*- Mode: makefile-gmake -*-
 
-.PHONY: clean all debug release coverage
+.PHONY: clean cleaner unitclean all debug release coverage valgrind
 .PHONY: debug_lib release_lib coverage_lib
+.PHONY: test test_banner
 
 #
 # Real test makefile defines EXE (and possibly SRC) and includes this one.
@@ -62,11 +63,9 @@ LD = $(CC)
 WARNINGS += -Wall -Wno-deprecated-declarations
 INCLUDES += -I$(COMMON_DIR) -I$(LIB_DIR)/src -I$(LIB_DIR)/include
 BASE_FLAGS = -fPIC
-BASE_LDFLAGS = $(BASE_FLAGS) $(LDFLAGS)
-BASE_CFLAGS = $(BASE_FLAGS) $(CFLAGS)
-FULL_CFLAGS = $(BASE_CFLAGS) $(DEFINES) $(WARNINGS) $(INCLUDES) -MMD -MP \
-  $(shell pkg-config --cflags $(PKGS))
-FULL_LDFLAGS = $(BASE_LDFLAGS)
+FULL_CFLAGS = $(BASE_FLAGS) $(CFLAGS) $(DEFINES) $(WARNINGS) $(INCLUDES) \
+  -MMD -MP $(shell pkg-config --cflags $(PKGS))
+FULL_LDFLAGS = $(BASE_FLAGS) $(LDFLAGS)
 LIBS = $(shell pkg-config --libs $(LINK_PKGS)) -lpthread
 QUIET_MAKE = make --no-print-directory
 DEBUG_FLAGS = -g

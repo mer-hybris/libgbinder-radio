@@ -4,6 +4,7 @@
 #
 
 TESTS="\
+unit_client \
 unit_instance \
 unit_registry \
 unit_util"

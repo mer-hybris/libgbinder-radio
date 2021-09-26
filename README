@@ -1,0 +1,2 @@
+A library for communicating with Android IRadio binder services,
+built on top of libgbinder.

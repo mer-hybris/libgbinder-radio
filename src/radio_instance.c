@@ -36,7 +36,7 @@
 
 #define GLIB_DISABLE_DEPRECATION_WARNINGS
 
-#include "radio_instance.h"
+#include "radio_instance_p.h"
 #include "radio_registry_p.h"
 #include "radio_util.h"
 #include "radio_log.h"
@@ -44,6 +44,7 @@
 #include <gbinder.h>
 
 #include <gutil_idlepool.h>
+#include <gutil_macros.h>
 #include <gutil_misc.h>
 #include <gutil_strv.h>
 
@@ -56,6 +57,7 @@ struct radio_instance_priv {
     GBinderRemoteObject* remote;
     GBinderLocalObject* response;
     GBinderLocalObject* indication;
+    GHashTable* req_quarks;
     GHashTable* resp_quarks;
     GHashTable* ind_quarks;
     gulong death_id;
@@ -67,24 +69,59 @@ struct radio_instance_priv {
 
 G_DEFINE_TYPE(RadioInstance, radio_instance, G_TYPE_OBJECT)
 
-enum radio_instance_signal {
-    SIGNAL_HANDLE_INDICATION,
+G_STATIC_ASSERT(RADIO_INSTANCE_PRIORITY_LOWEST == 0);
+G_STATIC_ASSERT(RADIO_INSTANCE_PRIORITY_HIGHEST == 7);
+#define FOREACH_PRIORITY(p) p(0) p(1) p(2) p(3) p(4) p(5) p(6) p(7)
+#define RADIO_INSTANCE_PRIORITY_INDEX(p) ((p) - RADIO_INSTANCE_PRIORITY_LOWEST)
+#define RADIO_INSTANCE_PRIORITY_COUNT \
+    (RADIO_INSTANCE_PRIORITY_INDEX(RADIO_INSTANCE_PRIORITY_HIGHEST) + 1)
+
+typedef enum radio_instance_signal {
+    #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_REQUEST_##x,
+    FOREACH_PRIORITY(SIGNAL_INDEX)
+    #undef SIGNAL_INDEX
+    #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_RESPONSE_##x,
+    FOREACH_PRIORITY(SIGNAL_INDEX)
+    #undef SIGNAL_INDEX
+    #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_INDICATION_##x,
+    FOREACH_PRIORITY(SIGNAL_INDEX)
+    #undef SIGNAL_INDEX
     SIGNAL_HANDLE_RESPONSE,
-    SIGNAL_OBSERVE_INDICATION,
-    SIGNAL_OBSERVE_RESPONSE,
+    SIGNAL_HANDLE_INDICATION,
     SIGNAL_ACK,
     SIGNAL_DEATH,
     SIGNAL_ENABLED,
+    SIGNAL_CONNECTED,
     SIGNAL_COUNT
+} RADIO_INSTANCE_SIGNAL;
+
+static const char* radio_instance_signal_observe_request_name[] = {
+    #define SIGNAL_NAME(x) "radio-instance-observe-request-" #x,
+    FOREACH_PRIORITY(SIGNAL_NAME)
+    #undef SIGNAL_NAME
+    NULL
+};
+
+static const char* radio_instance_signal_observe_response_name[] = {
+    #define SIGNAL_NAME(x) "radio-instance-observe-response-" #x,
+    FOREACH_PRIORITY(SIGNAL_NAME)
+    #undef SIGNAL_NAME
+    NULL
+};
+
+static const char* radio_instance_signal_observe_indication_name[] = {
+    #define SIGNAL_NAME(x) "radio-instance-observe-indication-" #x,
+    FOREACH_PRIORITY(SIGNAL_NAME)
+    #undef SIGNAL_NAME
+    NULL
 };
 
 #define SIGNAL_HANDLE_INDICATION_NAME  "radio-instance-handle-indication"
 #define SIGNAL_HANDLE_RESPONSE_NAME    "radio-instance-handle-response"
-#define SIGNAL_OBSERVE_INDICATION_NAME "radio-instance-observe-indication"
-#define SIGNAL_OBSERVE_RESPONSE_NAME   "radio-instance-observe-response"
 #define SIGNAL_ACK_NAME                "radio-instance-ack"
 #define SIGNAL_DEATH_NAME              "radio-instance-death"
 #define SIGNAL_ENABLED_NAME            "radio-instance-enabled"
+#define SIGNAL_CONNECTED_NAME          "radio-instance-connected"
 
 static guint radio_instance_signals[SIGNAL_COUNT] = { 0 };
 
@@ -144,32 +181,41 @@ static const RadioInterfaceDesc radio_interfaces[] = {
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_interfaces) == RADIO_INTERFACE_COUNT);
 
+typedef struct radio_instance_tx {
+    RadioInstance* instance;
+    RadioInstanceTxCompleteFunc complete;
+    RadioInstanceTxDestroyFunc destroy;
+    gulong id;
+    void* user_data1;
+    void* user_data2;
+} RadioInstanceTx;
+
 /*==========================================================================*
  * Implementation
  *==========================================================================*/
 
 static
 GQuark
-radio_instance_ind_quark(
+radio_instance_req_quark(
     RadioInstance* self,
-    RADIO_IND ind)
+    RADIO_REQ req)
 {
     GQuark q = 0;
 
-    if (ind != RADIO_IND_ANY) {
+    if (req != RADIO_REQ_ANY) {
         RadioInstancePriv* priv = self->priv;
-        gpointer key = GUINT_TO_POINTER(ind);
+        gpointer key = GUINT_TO_POINTER(req);
 
-        q = GPOINTER_TO_UINT(g_hash_table_lookup(priv->ind_quarks, key));
+        q = GPOINTER_TO_UINT(g_hash_table_lookup(priv->req_quarks, key));
         if (!q) {
-            const char* known = radio_ind_name(ind);
+            const char* known = radio_req_name(req);
 
             if (known) {
                 q = g_quark_from_static_string(known);
             } else {
-                q = g_quark_from_string(radio_instance_ind_name(self, ind));
+                q = g_quark_from_string(radio_instance_req_name(self, req));
             }
-            g_hash_table_insert(priv->ind_quarks, key, GUINT_TO_POINTER(q));
+            g_hash_table_insert(priv->req_quarks, key, GUINT_TO_POINTER(q));
         }
     }
     return q;
@@ -203,6 +249,42 @@ radio_instance_resp_quark(
 }
 
 static
+guint
+radio_instance_priority_index(
+    RADIO_INSTANCE_PRIORITY priority)
+{
+    if (priority < RADIO_INSTANCE_PRIORITY_LOWEST) {
+        return 0;
+    } else if (priority > RADIO_INSTANCE_PRIORITY_HIGHEST) {
+        return RADIO_INSTANCE_PRIORITY_COUNT - 1;
+    } else {
+        return priority - RADIO_INSTANCE_PRIORITY_LOWEST;
+    }
+}
+
+static
+void
+radio_instance_notify_request_observers(
+    RadioInstance* self,
+    RADIO_REQ code,
+    GBinderLocalRequest* args)
+{
+    GQuark quark = 0;
+    int i;
+
+    for (i = RADIO_INSTANCE_PRIORITY_COUNT - 1; i >= 0; i--) {
+        guint id = radio_instance_signals[SIGNAL_OBSERVE_REQUEST_0 + i];
+
+        if (id) {
+            if (!quark) {
+                quark = radio_instance_req_quark(self, code);
+            }
+            g_signal_emit(self, id, quark, code, args);
+        }
+    }
+}
+
+static
 GBinderLocalReply*
 radio_instance_indication(
     GBinderLocalObject* obj,
@@ -224,15 +306,49 @@ radio_instance_indication(
         gbinder_remote_request_init_reader(req, &reader);
         if (gbinder_reader_read_uint32(&reader, &type) &&
             (type == RADIO_IND_UNSOLICITED || type == RADIO_IND_ACK_EXP)) {
-            GQuark quark = radio_instance_ind_quark(self, code);
+            const GQuark quark = radio_instance_ind_quark(self, code);
+            const guint* signals = radio_instance_signals +
+                SIGNAL_OBSERVE_INDICATION_0;
+            int p = RADIO_INSTANCE_PRIORITY_HIGHEST;
             gboolean handled = FALSE;
 
-            g_signal_emit(self,
-                radio_instance_signals[SIGNAL_HANDLE_INDICATION], quark,
-                code, type, &reader, &handled);
-            g_signal_emit(self,
-                radio_instance_signals[SIGNAL_OBSERVE_INDICATION], quark,
-                code, type, &reader);
+            /* High-priority observers are notified first */
+            for (; p > RADIO_INSTANCE_PRIORITY_DEFAULT; p--) {
+                if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+                    g_signal_emit(self, signals
+                        [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                        quark, code, type, &reader);
+                }
+            }
+
+            /* rilConnected is a special case */
+            if (code == RADIO_IND_RIL_CONNECTED) {
+                if (G_UNLIKELY(self->connected)) {
+                    /* We are only supposed to receive it once */
+                    GWARN("%s received unexpected rilConnected", self->slot);
+                } else {
+                    GDEBUG("%s connected", self->slot);
+                    self->connected = TRUE;
+                    g_signal_emit(self, radio_instance_signals
+                        [SIGNAL_CONNECTED], 0);
+                }
+            }
+
+            /* Notify handlers */
+            g_signal_emit(self, radio_instance_signals
+                [SIGNAL_HANDLE_INDICATION],
+                quark, code, type, &reader, &handled);
+
+            /* And then remaining observers in their priority order */
+            for (; p >= RADIO_INSTANCE_PRIORITY_LOWEST; p--) {
+                if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+                    g_signal_emit(self, signals
+                        [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                        quark, code, type, &reader);
+                }
+            }
+
+            /* Ack unhandled indications */
             if (type == RADIO_IND_ACK_EXP && !handled) {
                 GDEBUG("ack unhandled indication");
                 radio_instance_ack(self);
@@ -283,15 +399,36 @@ radio_instance_response(
                 gbinder_reader_read_hidl_struct(&reader, RadioResponseInfo);
 
             if (info) {
-                GQuark quark = radio_instance_resp_quark(self, code);
+                const GQuark quark = radio_instance_resp_quark(self, code);
+                const guint* signals = radio_instance_signals +
+                    SIGNAL_OBSERVE_RESPONSE_0;
+                int p = RADIO_INSTANCE_PRIORITY_HIGHEST;
                 gboolean handled = FALSE;
 
-                g_signal_emit(self,
-                    radio_instance_signals[SIGNAL_HANDLE_RESPONSE], quark,
-                    code, info, &reader, &handled);
-                g_signal_emit(self,
-                    radio_instance_signals[SIGNAL_OBSERVE_RESPONSE], quark,
-                    code, info, &reader);
+                /* High-priority observers are notified first */
+                for (; p > RADIO_INSTANCE_PRIORITY_DEFAULT; p--) {
+                    if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+                        g_signal_emit(self, signals
+                            [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                            quark, code, info, &reader);
+                    }
+                }
+
+                /* Then handlers */
+                g_signal_emit(self, radio_instance_signals
+                    [SIGNAL_HANDLE_RESPONSE],
+                    quark, code, info, &reader, &handled);
+
+                /* And then remaining observers in their priority order */
+                for (; p >= RADIO_INSTANCE_PRIORITY_LOWEST; p--) {
+                    if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+                        g_signal_emit(self, signals
+                            [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                            quark, code, info, &reader);
+                    }
+                }
+
+                /* Ack unhandled responses */
                 if (info->type == RADIO_RESP_SOLICITED_ACK_EXP && !handled) {
                     GDEBUG("ack unhandled response");
                     radio_instance_ack(self);
@@ -354,6 +491,7 @@ radio_instance_died(
     RadioInstance* self = RADIO_INSTANCE(user_data);
 
     self->dead = TRUE;
+    self->connected = FALSE;
     GWARN("%s died", self->key);
     radio_instance_ref(self);
     radio_instance_drop_binder(self);
@@ -477,6 +615,124 @@ radio_instance_make_key(
     RADIO_INTERFACE version)
 {
     return g_strdup_printf("%s:%s:%d", dev, name, version);
+}
+
+static
+void
+radio_instance_tx_free(
+    RadioInstanceTx* tx)
+{
+    radio_instance_unref(tx->instance);
+    gutil_slice_free(tx);
+}
+
+static
+void
+radio_instance_tx_destroy(
+    gpointer tx_data)
+{
+    RadioInstanceTx* tx = tx_data;
+
+    if (tx->destroy) {
+        tx->destroy(tx->user_data1, tx->user_data2);
+    }
+    radio_instance_tx_free(tx);
+}
+
+static
+void
+radio_instance_tx_complete(
+    GBinderClient* client,
+    GBinderRemoteReply* reply,
+    int status,
+    void* tx_data)
+{
+    RadioInstanceTx* tx = tx_data;
+
+    if (tx->complete) {
+        tx->complete(tx->instance, tx->id, status, tx->user_data1,
+            tx->user_data2);
+    }
+}
+
+/*==========================================================================*
+ * Internal API
+ *==========================================================================*/
+
+gulong
+radio_instance_send_request(
+    RadioInstance* self,
+    RADIO_REQ code,
+    GBinderLocalRequest* args,
+    RadioInstanceTxCompleteFunc complete,
+    RadioInstanceTxDestroyFunc destroy,
+    void* user_data1,
+    void* user_data2)
+{
+    if (G_LIKELY(self)) {
+        RadioInstancePriv* priv = self->priv;
+
+        if (complete || destroy) {
+            RadioInstanceTx* tx = g_slice_new(RadioInstanceTx);
+
+            tx->instance = radio_instance_ref(self);
+            tx->complete = complete;
+            tx->destroy = destroy;
+            tx->user_data1 = user_data1;
+            tx->user_data2 = user_data2;
+            radio_instance_notify_request_observers(self, code, args);
+            tx->id = gbinder_client_transact(priv->client, code,
+                GBINDER_TX_FLAG_ONEWAY, args, radio_instance_tx_complete,
+                radio_instance_tx_destroy, tx);
+            if (tx->id) {
+                return tx->id;
+            } else {
+                radio_instance_tx_free(tx);
+            }
+        } else {
+            /* No need to allocate the context */
+            radio_instance_notify_request_observers(self, code, args);
+            return gbinder_client_transact(priv->client, code,
+                GBINDER_TX_FLAG_ONEWAY, args, NULL, NULL, NULL);
+        }
+    }
+    return 0;
+}
+
+void
+radio_instance_cancel_request(
+    RadioInstance* self,
+    gulong id)
+{
+    if (G_LIKELY(self)) {
+        gbinder_client_cancel(self->priv->client, id);
+    }
+}
+
+GQuark
+radio_instance_ind_quark(
+    RadioInstance* self,
+    RADIO_IND ind)
+{
+    GQuark q = 0;
+
+    if (ind != RADIO_IND_ANY) {
+        RadioInstancePriv* priv = self->priv;
+        gpointer key = GUINT_TO_POINTER(ind);
+
+        q = GPOINTER_TO_UINT(g_hash_table_lookup(priv->ind_quarks, key));
+        if (!q) {
+            const char* known = radio_ind_name(ind);
+
+            if (known) {
+                q = g_quark_from_static_string(known);
+            } else {
+                q = g_quark_from_string(radio_instance_ind_name(self, ind));
+            }
+            g_hash_table_insert(priv->ind_quarks, key, GUINT_TO_POINTER(q));
+        }
+    }
+    return q;
 }
 
 /*==========================================================================*
@@ -645,6 +901,22 @@ radio_instance_unref(
     }
 }
 
+gsize
+radio_instance_rpc_header_size(
+    RadioInstance* self,
+    RADIO_REQ req) /* Since 1.4.3 */
+{
+    if (G_LIKELY(self)) {
+        RadioInstancePriv* priv = self->priv;
+        GBytes* header = gbinder_client_rpc_header(priv->client, req);
+
+        if (header) {
+            return g_bytes_get_size(header);
+        }
+    }
+    return 0;
+}
+
 const char*
 radio_instance_req_name(
     RadioInstance* self,
@@ -714,8 +986,11 @@ radio_instance_ack(
     RadioInstance* self)
 {
     if (G_LIKELY(self)) {
-        return gbinder_client_transact_sync_oneway(self->priv->client,
-            RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT, NULL) >= 0;
+        GBinderClient* client = self->priv->client;
+        const RADIO_REQ code = RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT;
+
+        radio_instance_notify_request_observers(self, code, NULL);
+        return gbinder_client_transact_sync_oneway(client, code, NULL) >= 0;
     }
     return 0;
 }
@@ -738,8 +1013,10 @@ radio_instance_send_request_sync(
     GBinderLocalRequest* args)
 {
     if (G_LIKELY(self)) {
-        return gbinder_client_transact_sync_oneway(self->priv->client,
-            code, args) >= 0;
+        GBinderClient* client = self->priv->client;
+
+        radio_instance_notify_request_observers(self, code, args);
+        return gbinder_client_transact_sync_oneway(client, code, args) >= 0;
     }
     return FALSE;
 }
@@ -757,57 +1034,153 @@ radio_instance_set_enabled(
 }
 
 gulong
-radio_instance_add_indication_handler(
+radio_instance_add_request_observer(
     RadioInstance* self,
-    RADIO_IND ind,
-    RadioIndicationHandlerFunc func,
+    RADIO_REQ code,
+    RadioRequestObserverFunc func,
+    gpointer user_data) /* Since 1.4.3 */
+{
+    return radio_instance_add_request_observer_with_priority(self,
+        RADIO_INSTANCE_PRIORITY_DEFAULT, code, func, user_data);
+}
+
+gulong
+radio_instance_add_request_observer_with_priority(
+    RadioInstance* self,
+    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_REQ code,
+    RadioRequestObserverFunc func,
+    gpointer user_data) /* Since 1.4.3 */
+{
+    if (G_LIKELY(self) && G_LIKELY(func)) {
+        const guint index = radio_instance_priority_index(priority);
+        const RADIO_INSTANCE_SIGNAL sig = SIGNAL_OBSERVE_REQUEST_0 + index;
+
+        /* Register signal on demand */
+        if (!radio_instance_signals[sig]) {
+            radio_instance_signals[sig] =
+                g_signal_new(radio_instance_signal_observe_request_name
+                    [index], RADIO_TYPE_INSTANCE,
+                    G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED,
+                    0, NULL, NULL, NULL, G_TYPE_NONE,
+                    2, G_TYPE_UINT, G_TYPE_POINTER);
+        }
+
+        return g_signal_connect_closure_by_id(self,
+            radio_instance_signals[sig],
+            radio_instance_req_quark(self, code),
+            g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE);
+    }
+    return 0;
+}
+
+gulong
+radio_instance_add_response_observer(
+    RadioInstance* self,
+    RADIO_RESP code,
+    RadioResponseObserverFunc func,
     gpointer user_data)
 {
-    return (G_LIKELY(self) && G_LIKELY(func)) ?
-        g_signal_connect_closure_by_id(self,
-            radio_instance_signals[SIGNAL_HANDLE_INDICATION],
-            radio_instance_ind_quark(self, ind),
-            g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE) : 0;
+    return radio_instance_add_response_observer_with_priority(self,
+        RADIO_INSTANCE_PRIORITY_DEFAULT, code, func, user_data);
+}
+
+gulong
+radio_instance_add_response_observer_with_priority(
+    RadioInstance* self,
+    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_RESP code,
+    RadioResponseObserverFunc func,
+    gpointer user_data) /* Since 1.4.3 */
+{
+    if (G_LIKELY(self) && G_LIKELY(func)) {
+        const guint index = radio_instance_priority_index(priority);
+        const RADIO_INSTANCE_SIGNAL sig = SIGNAL_OBSERVE_RESPONSE_0 + index;
+
+        /* Register signal on demand */
+        if (!radio_instance_signals[sig]) {
+            radio_instance_signals[sig] =
+                g_signal_new(radio_instance_signal_observe_response_name
+                    [index], RADIO_TYPE_INSTANCE,
+                    G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED,
+                    0, NULL, NULL, NULL, G_TYPE_NONE,
+                    3, G_TYPE_UINT, G_TYPE_POINTER, G_TYPE_POINTER);
+        }
+
+        return g_signal_connect_closure_by_id(self,
+            radio_instance_signals[sig],
+            radio_instance_resp_quark(self, code),
+            g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE);
+    }
+    return 0;
 }
 
 gulong
 radio_instance_add_indication_observer(
     RadioInstance* self,
-    RADIO_IND ind,
+    RADIO_IND code,
     RadioIndicationObserverFunc func,
     gpointer user_data)
 {
-    return (G_LIKELY(self) && G_LIKELY(func)) ?
-        g_signal_connect_closure_by_id(self,
-            radio_instance_signals[SIGNAL_OBSERVE_INDICATION],
-            radio_instance_ind_quark(self, ind),
-            g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE) : 0;
+    return radio_instance_add_indication_observer_with_priority(self,
+        RADIO_INSTANCE_PRIORITY_DEFAULT, code, func, user_data);
 }
+
+gulong
+radio_instance_add_indication_observer_with_priority(
+    RadioInstance* self,
+    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_IND code,
+    RadioIndicationObserverFunc func,
+    gpointer user_data) /* Since 1.4.3 */
+{
+    if (G_LIKELY(self) && G_LIKELY(func)) {
+        const guint index = radio_instance_priority_index(priority);
+        const RADIO_INSTANCE_SIGNAL sig = SIGNAL_OBSERVE_INDICATION_0 + index;
+
+        /* Register signal on demand */
+        if (!radio_instance_signals[sig]) {
+            radio_instance_signals[sig] =
+                g_signal_new(radio_instance_signal_observe_indication_name
+                    [index], RADIO_TYPE_INSTANCE,
+                    G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED,
+                    0, NULL, NULL, NULL, G_TYPE_NONE,
+                    3, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_POINTER);
+        }
+
+        return g_signal_connect_closure_by_id(self,
+            radio_instance_signals[sig],
+            radio_instance_ind_quark(self, code),
+            g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE);
+    }
+    return 0;
+}
+
 gulong
 radio_instance_add_response_handler(
     RadioInstance* self,
-    RADIO_RESP resp,
+    RADIO_RESP code,
     RadioResponseHandlerFunc func,
     gpointer user_data)
 {
     return (G_LIKELY(self) && G_LIKELY(func)) ?
         g_signal_connect_closure_by_id(self,
             radio_instance_signals[SIGNAL_HANDLE_RESPONSE],
-            radio_instance_resp_quark(self, resp),
+            radio_instance_resp_quark(self, code),
             g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE) : 0;
 }
 
 gulong
-radio_instance_add_response_observer(
+radio_instance_add_indication_handler(
     RadioInstance* self,
-    RADIO_RESP resp,
-    RadioResponseObserverFunc func,
+    RADIO_IND code,
+    RadioIndicationHandlerFunc func,
     gpointer user_data)
 {
     return (G_LIKELY(self) && G_LIKELY(func)) ?
         g_signal_connect_closure_by_id(self,
-            radio_instance_signals[SIGNAL_OBSERVE_RESPONSE],
-            radio_instance_resp_quark(self, resp),
+            radio_instance_signals[SIGNAL_HANDLE_INDICATION],
+            radio_instance_ind_quark(self, code),
             g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE) : 0;
 }
 
@@ -839,6 +1212,16 @@ radio_instance_add_enabled_handler(
 {
     return (G_LIKELY(self) && G_LIKELY(func)) ? g_signal_connect(self,
         SIGNAL_ENABLED_NAME, G_CALLBACK(func), user_data) : 0;
+}
+
+gulong
+radio_instance_add_connected_handler(
+    RadioInstance* self,
+    RadioInstanceFunc func,
+    gpointer user_data) /* Since 1.4.3 */
+{
+    return (G_LIKELY(self) && G_LIKELY(func)) ? g_signal_connect(self,
+        SIGNAL_CONNECTED_NAME, G_CALLBACK(func), user_data) : 0;
 }
 
 void
@@ -874,6 +1257,7 @@ radio_instance_init(
 
     self->priv = priv;
     priv->idle = gutil_idle_pool_new();
+    priv->req_quarks = g_hash_table_new(g_direct_hash, g_direct_equal);
     priv->resp_quarks = g_hash_table_new(g_direct_hash, g_direct_equal);
     priv->ind_quarks = g_hash_table_new(g_direct_hash, g_direct_equal);
 }
@@ -889,6 +1273,7 @@ radio_instance_finalize(
     radio_instance_drop_binder(self);
     gbinder_client_unref(priv->client);
     gutil_idle_pool_destroy(priv->idle);
+    g_hash_table_destroy(priv->req_quarks);
     g_hash_table_destroy(priv->resp_quarks);
     g_hash_table_destroy(priv->ind_quarks);
     g_free(priv->slot);
@@ -909,24 +1294,17 @@ radio_instance_class_init(
     g_type_class_add_private(klass, sizeof(RadioInstancePriv));
     object_class->finalize = radio_instance_finalize;
 
-    radio_instance_signals[SIGNAL_HANDLE_INDICATION] =
-        g_signal_new(SIGNAL_HANDLE_INDICATION_NAME, type,
-            G_SIGNAL_RUN_LAST | G_SIGNAL_DETAILED, 0,
-            g_signal_accumulator_true_handled, NULL, NULL,
-            G_TYPE_BOOLEAN, 3, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_POINTER);
+    /* Priority-based signals are registered on demand */
     radio_instance_signals[SIGNAL_HANDLE_RESPONSE] =
         g_signal_new(SIGNAL_HANDLE_RESPONSE_NAME, type,
             G_SIGNAL_RUN_LAST | G_SIGNAL_DETAILED, 0,
             g_signal_accumulator_true_handled, NULL, NULL,
             G_TYPE_BOOLEAN, 3, G_TYPE_UINT, G_TYPE_POINTER, G_TYPE_POINTER);
-    radio_instance_signals[SIGNAL_OBSERVE_INDICATION] =
-        g_signal_new(SIGNAL_OBSERVE_INDICATION_NAME, type,
-            G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED, 0, NULL, NULL, NULL,
-            G_TYPE_NONE, 3, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_POINTER);
-    radio_instance_signals[SIGNAL_OBSERVE_RESPONSE] =
-        g_signal_new(SIGNAL_OBSERVE_RESPONSE_NAME, type,
-            G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED, 0, NULL, NULL, NULL,
-            G_TYPE_NONE, 3, G_TYPE_UINT, G_TYPE_POINTER, G_TYPE_POINTER);
+    radio_instance_signals[SIGNAL_HANDLE_INDICATION] =
+        g_signal_new(SIGNAL_HANDLE_INDICATION_NAME, type,
+            G_SIGNAL_RUN_LAST | G_SIGNAL_DETAILED, 0,
+            g_signal_accumulator_true_handled, NULL, NULL,
+            G_TYPE_BOOLEAN, 3, G_TYPE_UINT, G_TYPE_UINT, G_TYPE_POINTER);
     radio_instance_signals[SIGNAL_ACK] =
         g_signal_new(SIGNAL_ACK_NAME, type,
             G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
@@ -937,6 +1315,10 @@ radio_instance_class_init(
             G_TYPE_NONE, 0);
     radio_instance_signals[SIGNAL_ENABLED] =
         g_signal_new(SIGNAL_ENABLED_NAME, type,
+            G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
+            G_TYPE_NONE, 0);
+    radio_instance_signals[SIGNAL_CONNECTED] =
+        g_signal_new(SIGNAL_CONNECTED_NAME, type,
             G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
             G_TYPE_NONE, 0);
 }
