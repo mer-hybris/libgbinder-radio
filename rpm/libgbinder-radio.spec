@@ -10,9 +10,15 @@ Source: %{name}-%{version}.tar.bz2
 %define libgbinder_version 1.0.9
 %define libglibutil_version 1.0.34
 
+BuildRequires: pkgconfig
 BuildRequires: pkgconfig(glib-2.0)
 BuildRequires: pkgconfig(libglibutil) >= %{libglibutil_version}
 BuildRequires: pkgconfig(libgbinder) >= %{libgbinder_version}
+
+# license macro requires rpm >= 4.11
+BuildRequires: pkgconfig(rpm)
+%define license_support %(pkg-config --exists 'rpm >= 4.11'; echo $?)
+
 Requires: libglibutil >= %{libglibutil_version}
 Requires: libgbinder >= %{libgbinder_version}
 Requires(post): /sbin/ldconfig
@@ -24,7 +30,6 @@ Binder client library for Android radio interfaces
 %package devel
 Summary: Development library for %{name}
 Requires: %{name} = %{version}
-Requires: pkgconfig
 
 %description devel
 This package contains the development library for %{name}.
@@ -49,6 +54,9 @@ make -C unit test
 %files
 %defattr(-,root,root,-)
 %{_libdir}/%{name}.so.*
+%if %{license_support} == 0
+%license LICENSE
+%endif
 
 %files devel
 %defattr(-,root,root,-)
