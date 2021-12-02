@@ -34,80 +34,17 @@
  * any official policies, either expressed or implied.
  */
 
-#include "test_gbinder.h"
+#ifndef RADIO_TYPES_PRIVATE_H
+#define RADIO_TYPES_PRIVATE_H
 
-struct gbinder_local_reply {
-    guint32 refcount;
-    TestGBinderData* data;
-    char* iface;
-};
+#include <radio_types.h>
 
-static
-void
-test_gbinder_local_reply_free(
-    GBinderLocalReply* self)
-{
-    test_gbinder_data_unref(self->data);
-    g_free(self->iface);
-    g_free(self);
-}
+#define RADIO_INTERNAL G_GNUC_INTERNAL
 
-/*==========================================================================*
- * Internal API
- *==========================================================================*/
+/* Miliseconds to microseconds */
+#define MICROSEC(ms) (((gint64)(ms)) * 1000)
 
-GBinderLocalReply*
-test_gbinder_local_reply_new(
-    void)
-{
-    GBinderLocalReply* self = g_new0(GBinderLocalReply, 1);
-
-    g_atomic_int_set(&self->refcount, 1);
-    self->data = test_gbinder_data_new(NULL);
-    return self;
-}
-
-TestGBinderData*
-test_gbinder_local_reply_data(
-    GBinderLocalReply* self)
-{
-    return self ? self->data : NULL;
-}
-
-/*==========================================================================*
- * libgbinder API
- *==========================================================================*/
-
-GBinderLocalReply*
-gbinder_local_reply_ref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        g_atomic_int_inc(&self->refcount);
-    }
-    return self;
-}
-
-void
-gbinder_local_reply_unref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        if (g_atomic_int_dec_and_test(&self->refcount)) {
-            test_gbinder_local_reply_free(self);
-        }
-    }
-}
-
-void
-gbinder_local_reply_init_writer(
-    GBinderLocalReply* self,
-    GBinderWriter* writer)
-{
-    test_gbinder_data_init_writer(self->data, writer);
-}
+#endif /* RADIO_TYPES_PRIVATE_H */
 
 /*
  * Local Variables:

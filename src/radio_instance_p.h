@@ -34,80 +34,51 @@
  * any official policies, either expressed or implied.
  */
 
-#include "test_gbinder.h"
+#ifndef RADIO_INSTANCE_PRIVATE_H
+#define RADIO_INSTANCE_PRIVATE_H
 
-struct gbinder_local_reply {
-    guint32 refcount;
-    TestGBinderData* data;
-    char* iface;
-};
+#include "radio_types_p.h"
+#include "radio_instance.h"
 
-static
+typedef
 void
-test_gbinder_local_reply_free(
-    GBinderLocalReply* self)
-{
-    test_gbinder_data_unref(self->data);
-    g_free(self->iface);
-    g_free(self);
-}
+(*RadioInstanceTxCompleteFunc)(
+    RadioInstance* instance,
+    gulong id,
+    int status,
+    void* user_data1,
+    void* user_data2);
 
-/*==========================================================================*
- * Internal API
- *==========================================================================*/
+typedef
+void
+(*RadioInstanceTxDestroyFunc)(
+    void* user_data1,
+    void* user_data2);
 
-GBinderLocalReply*
-test_gbinder_local_reply_new(
-    void)
-{
-    GBinderLocalReply* self = g_new0(GBinderLocalReply, 1);
-
-    g_atomic_int_set(&self->refcount, 1);
-    self->data = test_gbinder_data_new(NULL);
-    return self;
-}
-
-TestGBinderData*
-test_gbinder_local_reply_data(
-    GBinderLocalReply* self)
-{
-    return self ? self->data : NULL;
-}
-
-/*==========================================================================*
- * libgbinder API
- *==========================================================================*/
-
-GBinderLocalReply*
-gbinder_local_reply_ref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        g_atomic_int_inc(&self->refcount);
-    }
-    return self;
-}
+gulong
+radio_instance_send_request(
+    RadioInstance* instance,
+    RADIO_REQ code,
+    GBinderLocalRequest* args,
+    RadioInstanceTxCompleteFunc complete,
+    RadioInstanceTxDestroyFunc destroy,
+    void* user_data1,
+    void* user_data2)
+    RADIO_INTERNAL;
 
 void
-gbinder_local_reply_unref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        if (g_atomic_int_dec_and_test(&self->refcount)) {
-            test_gbinder_local_reply_free(self);
-        }
-    }
-}
+radio_instance_cancel_request(
+    RadioInstance* instance,
+    gulong id)
+    RADIO_INTERNAL;
 
-void
-gbinder_local_reply_init_writer(
-    GBinderLocalReply* self,
-    GBinderWriter* writer)
-{
-    test_gbinder_data_init_writer(self->data, writer);
-}
+GQuark
+radio_instance_ind_quark(
+    RadioInstance* instance,
+    RADIO_IND ind)
+    RADIO_INTERNAL;
+
+#endif /* RADIO_INSTANCE_PRIVATE_H */
 
 /*
  * Local Variables:

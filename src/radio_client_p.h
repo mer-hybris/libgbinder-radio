@@ -34,80 +34,83 @@
  * any official policies, either expressed or implied.
  */
 
-#include "test_gbinder.h"
+#ifndef RADIO_CLIENT_PRIVATE_H
+#define RADIO_CLIENT_PRIVATE_H
 
-struct gbinder_local_reply {
-    guint32 refcount;
-    TestGBinderData* data;
-    char* iface;
+#include "radio_types_p.h"
+#include "radio_client.h"
+
+#include <glib-object.h>
+
+struct radio_client {
+    GObject object;
+    RadioInstance* instance;
 };
 
-static
 void
-test_gbinder_local_reply_free(
-    GBinderLocalReply* self)
-{
-    test_gbinder_data_unref(self->data);
-    g_free(self->iface);
-    g_free(self);
-}
-
-/*==========================================================================*
- * Internal API
- *==========================================================================*/
-
-GBinderLocalReply*
-test_gbinder_local_reply_new(
-    void)
-{
-    GBinderLocalReply* self = g_new0(GBinderLocalReply, 1);
-
-    g_atomic_int_set(&self->refcount, 1);
-    self->data = test_gbinder_data_new(NULL);
-    return self;
-}
-
-TestGBinderData*
-test_gbinder_local_reply_data(
-    GBinderLocalReply* self)
-{
-    return self ? self->data : NULL;
-}
-
-/*==========================================================================*
- * libgbinder API
- *==========================================================================*/
-
-GBinderLocalReply*
-gbinder_local_reply_ref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        g_atomic_int_inc(&self->refcount);
-    }
-    return self;
-}
+radio_client_register_request(
+    RadioClient* client,
+    RadioRequest* req)
+    RADIO_INTERNAL;
 
 void
-gbinder_local_reply_unref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        if (g_atomic_int_dec_and_test(&self->refcount)) {
-            test_gbinder_local_reply_free(self);
-        }
-    }
-}
+radio_client_unregister_request(
+    RadioClient* client,
+    RadioRequest* req)
+    RADIO_INTERNAL;
+
+gboolean
+radio_client_submit_request(
+    RadioClient* client,
+    RadioRequest* req)
+    RADIO_INTERNAL;
+
+gboolean
+radio_client_retry_request(
+    RadioClient* client,
+    RadioRequest* req)
+    RADIO_INTERNAL;
 
 void
-gbinder_local_reply_init_writer(
-    GBinderLocalReply* self,
-    GBinderWriter* writer)
-{
-    test_gbinder_data_init_writer(self->data, writer);
-}
+radio_client_request_dropped(
+    RadioRequest* req)
+    RADIO_INTERNAL;
+
+guint
+radio_client_timeout_ms(
+    RadioClient* client,
+    RadioRequest* req)
+    RADIO_INTERNAL;
+
+void
+radio_client_reset_timeout(
+    RadioClient* client)
+    RADIO_INTERNAL;
+
+void
+radio_client_reset_timeout(
+    RadioClient* client)
+    RADIO_INTERNAL;
+
+RADIO_BLOCK
+radio_client_block_status(
+    RadioClient* client,
+    RadioRequestGroup* group)
+    RADIO_INTERNAL;
+
+RADIO_BLOCK
+radio_client_block(
+    RadioClient* client,
+    RadioRequestGroup* group)
+    RADIO_INTERNAL;
+
+void
+radio_client_unblock(
+    RadioClient* client,
+    RadioRequestGroup* group)
+    RADIO_INTERNAL;
+
+#endif /* RADIO_CLIENT_PRIVATE_H */
 
 /*
  * Local Variables:

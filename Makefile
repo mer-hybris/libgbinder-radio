@@ -47,8 +47,11 @@ LIB = $(LIB_NAME).a
 #
 
 SRC = \
+  radio_client.c \
   radio_instance.c \
   radio_registry.c \
+  radio_request.c \
+  radio_request_group.c \
   radio_util.c
 
 #

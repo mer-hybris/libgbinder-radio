@@ -7,8 +7,8 @@ License: BSD
 URL: https://github.com/mer-hybris/libgbinder-radio
 Source: %{name}-%{version}.tar.bz2
 
-%define libgbinder_version 1.0.9
-%define libglibutil_version 1.0.34
+%define libgbinder_version 1.1.14
+%define libglibutil_version 1.0.49
 
 BuildRequires: pkgconfig
 BuildRequires: pkgconfig(glib-2.0)

@@ -36,9 +36,11 @@
 
 #include "test_gbinder.h"
 
-#include <gutil_macros.h>
+#include <gutil_misc.h>
+#include <gutil_idlepool.h>
 
 typedef enum test_gbinder_data_type {
+    DATA_TYPE_BOOLEAN,
     DATA_TYPE_INT32,
     DATA_TYPE_BUFFER,
     DATA_TYPE_LOCAL_OBJ
@@ -49,9 +51,10 @@ struct test_gbinder_data_item {
     TestGBinderDataItem* next;
     DATA_TYPE type;
     union {
+        gboolean b;
         gint32 i32;
         struct {
-            const void* buf;
+            void* buf;
             gsize size;
         } blob;
         GBinderLocalObject* obj;
@@ -62,6 +65,8 @@ struct test_gbinder_data_item {
 struct test_gbinder_data {
     guint32 refcount;
     TestGBinderDataItem* items;
+    GUtilIdlePool* pool;
+    char* iface;
 };
 
 typedef struct test_gbinder_reader {
@@ -85,6 +90,15 @@ test_gbinder_data_item_destroy_local_obj(
 {
     g_assert_cmpint(item->type, == ,DATA_TYPE_LOCAL_OBJ);
     gbinder_local_object_unref(item->data.obj);
+}
+
+static
+void
+test_gbinder_data_item_destroy_buffer(
+    TestGBinderDataItem* item)
+{
+    g_assert_cmpint(item->type, == ,DATA_TYPE_BUFFER);
+    g_free(item->data.blob.buf);
 }
 
 static
@@ -118,6 +132,8 @@ test_gbinder_data_free(
     TestGBinderData* data)
 {
     test_gbinder_data_item_free(data->items);
+    gutil_idle_pool_destroy(data->pool);
+    g_free(data->iface);
     g_free(data);
 }
 
@@ -155,17 +171,111 @@ test_gbinder_data_append(
     }
 }
 
+static
+gsize
+test_gbinder_data_item_size(
+    TestGBinderDataItem* item)
+{
+    switch (item->type) {
+    case DATA_TYPE_BOOLEAN:
+        return sizeof(item->data.b);
+    case DATA_TYPE_INT32:
+        return sizeof(item->data.i32);
+    case DATA_TYPE_BUFFER:
+        return sizeof(item->data.blob);
+    case DATA_TYPE_LOCAL_OBJ:
+        return sizeof(item->data.obj);
+    }
+    return 0;
+}
+
+static
+void*
+test_gbinder_data_buffer(
+    TestGBinderData* data,
+    gsize* out_size)
+{
+    gsize size = 0;
+    void* ptr = NULL;
+
+    if (data) {
+        TestGBinderDataItem* item;
+        GByteArray* buf = g_byte_array_new();
+
+        if (data->iface) {
+            gsize header_size = strlen(data->iface);
+
+            g_byte_array_append(buf, (void*)data->iface, header_size);
+            size += header_size;
+        }
+        for (item = data->items; item; item = item->next) {
+            gsize item_size = test_gbinder_data_item_size(item);
+
+            g_byte_array_append(buf, (void*)&item->data, item_size);
+            size += item_size;
+        }
+        ptr = g_byte_array_free(buf, FALSE);
+    }
+    if (out_size) *out_size = size;
+    return ptr;
+}
+
+static
+gsize
+test_gbinder_data_size(
+    TestGBinderData* data)
+{
+    gsize size = 0;
+
+    if (data) {
+        TestGBinderDataItem* item;
+
+        if (data->iface) size += strlen(data->iface);
+        for (item = data->items; item; item = item->next) {
+            size += test_gbinder_data_item_size(item);
+        }
+    }
+    return size;
+}
+
+static
+guint32
+test_gbinder_date_replace_int32(
+    TestGBinderData* data,
+    gsize offset,
+    guint32 value)
+{
+    if (data) {
+        gsize size = 0;
+        TestGBinderDataItem* item;
+
+        for (item = data->items; item; item = item->next) {
+            if (size == offset) {
+                guint32 prev;
+
+                g_assert_cmpint(item->type, == ,DATA_TYPE_INT32);
+                prev = item->data.i32;
+                item->data.i32 = value;
+                return prev;
+            }
+            size += test_gbinder_data_item_size(item);
+        }
+    }
+    return 0;
+}
+
 /*==========================================================================*
  * Internal API
  *==========================================================================*/
 
 TestGBinderData*
 test_gbinder_data_new(
-    void)
+    const char* iface)
 {
     TestGBinderData* data = g_new0(TestGBinderData, 1);
 
     g_atomic_int_set(&data->refcount, 1);
+    data->iface = g_strdup(iface); /* Doubles as a request header */
     return data;
 }
 
@@ -208,9 +318,11 @@ test_gbinder_data_init_writer(
     TestGBinderData* data,
     GBinderWriter* writer)
 {
-    memset(writer, 0, sizeof(*writer));
-    if (data) {
-         test_gbinder_writer_cast(writer)->data = data;
+    if (writer) {
+        memset(writer, 0, sizeof(*writer));
+        if (data) {
+            test_gbinder_writer_cast(writer)->data = data;
+        }
     }
 }
 
@@ -274,6 +386,33 @@ gbinder_reader_read_object(
     return NULL;
 }
 
+const void*
+gbinder_writer_get_data(
+    GBinderWriter* writer,
+    gsize* size)
+{
+    TestGBinderWriter* self = test_gbinder_writer_cast(writer);
+    TestGBinderData* data = self->data;
+    void* buf = test_gbinder_data_buffer(data, size);
+
+    if (buf) {
+        if (!data->pool) {
+            data->pool = gutil_idle_pool_new();
+        }
+        gutil_idle_pool_add(data->pool, buf, g_free);
+    }
+    return buf;
+}
+
+gsize
+gbinder_writer_bytes_written(
+    GBinderWriter* writer)
+{
+    TestGBinderWriter* self = test_gbinder_writer_cast(writer);
+
+    return test_gbinder_data_size(self->data);
+}
+
 void
 gbinder_writer_append_int32(
     GBinderWriter* writer,
@@ -283,6 +422,29 @@ gbinder_writer_append_int32(
     TestGBinderDataItem* item = test_gbinder_data_item_new(DATA_TYPE_INT32);
 
     item->data.i32 = value;
+    test_gbinder_data_append(self->data, item);
+}
+
+void
+gbinder_writer_overwrite_int32(
+    GBinderWriter* writer,
+    gsize offset,
+    gint32 value)
+{
+    TestGBinderWriter* self = test_gbinder_writer_cast(writer);
+
+    test_gbinder_date_replace_int32(self->data, offset, value);
+}
+
+void
+gbinder_writer_append_bool(
+    GBinderWriter* writer,
+    gboolean value)
+{
+    TestGBinderWriter* self = test_gbinder_writer_cast(writer);
+    TestGBinderDataItem* item = test_gbinder_data_item_new(DATA_TYPE_BOOLEAN);
+
+    item->data.b = value;
     test_gbinder_data_append(self->data, item);
 }
 
@@ -296,7 +458,8 @@ gbinder_writer_append_buffer_object(
     TestGBinderDataItem* item = test_gbinder_data_item_new(DATA_TYPE_BUFFER);
     const guint index = test_gbinder_data_count_buffers(self->data);
 
-    item->data.blob.buf = buf;
+    item->destroy = test_gbinder_data_item_destroy_buffer;
+    item->data.blob.buf = gutil_memdup(buf, size);
     item->data.blob.size = size;
     test_gbinder_data_append(self->data, item);
     return index;

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2019 Jolla Ltd.
- * Copyright (C) 2018-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2021 Jolla Ltd.
+ * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -44,6 +44,7 @@ struct radio_registry {
     GObject parent;
 };
 
+GType radio_registry_get_type(void) RADIO_INTERNAL;
 G_DEFINE_TYPE(RadioRegistry, radio_registry, G_TYPE_OBJECT)
 #define RADIO_TYPE_REGISTRY (radio_registry_get_type())
 #define RADIO_REGISTRY(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj), \
@@ -110,7 +111,7 @@ radio_registry_new(
             (gpointer*)(&radio_registry_instance));
     }
     return radio_registry_instance;
-    
+
 }
 
 RadioRegistry*

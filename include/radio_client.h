@@ -34,80 +34,105 @@
  * any official policies, either expressed or implied.
  */
 
-#include "test_gbinder.h"
+#ifndef RADIO_CLIENT_H
+#define RADIO_CLIENT_H
 
-struct gbinder_local_reply {
-    guint32 refcount;
-    TestGBinderData* data;
-    char* iface;
-};
+/* This API exists since 1.4.3 */
 
-static
+#include <radio_types.h>
+
+G_BEGIN_DECLS
+
+typedef
 void
-test_gbinder_local_reply_free(
-    GBinderLocalReply* self)
-{
-    test_gbinder_data_unref(self->data);
-    g_free(self->iface);
-    g_free(self);
-}
+(*RadioClientIndicationFunc)(
+    RadioClient* client,
+    RADIO_IND code,
+    const GBinderReader* reader,
+    gpointer user_data);
 
-/*==========================================================================*
- * Internal API
- *==========================================================================*/
+typedef
+void
+(*RadioClientFunc)(
+    RadioClient* client,
+    gpointer user_data);
 
-GBinderLocalReply*
-test_gbinder_local_reply_new(
-    void)
-{
-    GBinderLocalReply* self = g_new0(GBinderLocalReply, 1);
+RadioClient*
+radio_client_new(
+    RadioInstance* instance)
+    G_GNUC_WARN_UNUSED_RESULT;
 
-    g_atomic_int_set(&self->refcount, 1);
-    self->data = test_gbinder_data_new(NULL);
-    return self;
-}
-
-TestGBinderData*
-test_gbinder_local_reply_data(
-    GBinderLocalReply* self)
-{
-    return self ? self->data : NULL;
-}
-
-/*==========================================================================*
- * libgbinder API
- *==========================================================================*/
-
-GBinderLocalReply*
-gbinder_local_reply_ref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        g_atomic_int_inc(&self->refcount);
-    }
-    return self;
-}
+RadioClient*
+radio_client_ref(
+    RadioClient* client);
 
 void
-gbinder_local_reply_unref(
-    GBinderLocalReply* self)
-{
-    if (self) {
-        g_assert_cmpint(self->refcount, > ,0);
-        if (g_atomic_int_dec_and_test(&self->refcount)) {
-            test_gbinder_local_reply_free(self);
-        }
-    }
-}
+radio_client_unref(
+    RadioClient* client);
+
+RADIO_INTERFACE
+radio_client_interface(
+    RadioClient* client);
+
+const char*
+radio_client_slot(
+    RadioClient* client);
+
+gboolean
+radio_client_dead(
+    RadioClient* client);
+
+gboolean
+radio_client_connected(
+    RadioClient* client);
 
 void
-gbinder_local_reply_init_writer(
-    GBinderLocalReply* self,
-    GBinderWriter* writer)
-{
-    test_gbinder_data_init_writer(self->data, writer);
-}
+radio_client_set_default_timeout(
+    RadioClient* client,
+    int milliseconds);
+
+gulong
+radio_client_add_indication_handler(
+    RadioClient* client,
+    RADIO_IND code,
+    RadioClientIndicationFunc func,
+    gpointer user_data);
+
+gulong
+radio_client_add_owner_changed_handler(
+    RadioClient* client,
+    RadioClientFunc func,
+    gpointer user_data);
+
+gulong
+radio_client_add_death_handler(
+    RadioClient* client,
+    RadioClientFunc func,
+    gpointer user_data);
+
+gulong
+radio_client_add_connected_handler(
+    RadioClient* client,
+    RadioClientFunc func,
+    gpointer user_data);
+
+void
+radio_client_remove_handler(
+    RadioClient* client,
+    gulong id);
+
+void
+radio_client_remove_handlers(
+    RadioClient* client,
+    gulong* ids,
+    int count);
+
+#define radio_client_remove_all_handlers(client,ids) \
+    radio_client_remove_handlers(client, ids, G_N_ELEMENTS(ids))
+
+G_END_DECLS
+
+#endif /* RADIO_CLIENT_H */
 
 /*
  * Local Variables:

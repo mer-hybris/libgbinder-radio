@@ -45,15 +45,6 @@ G_BEGIN_DECLS
 
 typedef struct radio_instance_priv RadioInstancePriv;
 
-typedef enum radio_interface {
-    RADIO_INTERFACE_1_0,
-    RADIO_INTERFACE_1_1,
-    RADIO_INTERFACE_1_2,
-    RADIO_INTERFACE_1_3,
-    RADIO_INTERFACE_1_4,
-    RADIO_INTERFACE_COUNT
-} RADIO_INTERFACE; /* Since 1.2.0 */
-
 struct radio_instance {
     GObject parent;
     RadioInstancePriv* priv;
@@ -67,13 +58,29 @@ struct radio_instance {
     gboolean enabled;
     /* Since 1.2.0 */
     RADIO_INTERFACE version;
+    /* Since 1.4.3 */
+    gboolean connected; /* rilConnected received */
 };
+
+typedef enum radio_instance_priority {
+    RADIO_INSTANCE_PRIORITY_LOWEST,
+    RADIO_INSTANCE_PRIORITY_DEFAULT = 2,
+    RADIO_INSTANCE_PRIORITY_HIGHEST = 7
+} RADIO_INSTANCE_PRIORITY; /* Since 1.4.3 */
 
 typedef
 void
 (*RadioInstanceFunc)(
     RadioInstance* radio,
     gpointer user_data);
+
+typedef
+void
+(*RadioRequestObserverFunc)(
+    RadioInstance* radio,
+    RADIO_REQ code,
+    GBinderLocalRequest* args,
+    gpointer user_data); /* Since 1.4.3 */
 
 typedef
 gboolean
@@ -172,6 +179,11 @@ void
 radio_instance_unref(
     RadioInstance* radio);
 
+gsize
+radio_instance_rpc_header_size(
+    RadioInstance* radio,
+    RADIO_REQ req); /* Since 1.4.3 */
+
 const char*
 radio_instance_req_name(
     RadioInstance* radio,
@@ -208,11 +220,34 @@ radio_instance_set_enabled(
     gboolean enabled); /* Since 1.0.7 */
 
 gulong
-radio_instance_add_indication_handler(
+radio_instance_add_request_observer(
     RadioInstance* radio,
-    RADIO_IND code,
-    RadioIndicationHandlerFunc func,
+    RADIO_REQ code,
+    RadioRequestObserverFunc func,
+    gpointer user_data); /* Since 1.4.3 */
+
+gulong
+radio_instance_add_request_observer_with_priority(
+    RadioInstance* radio,
+    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_REQ code,
+    RadioRequestObserverFunc func,
+    gpointer user_data); /* Since 1.4.3 */
+
+gulong
+radio_instance_add_response_observer(
+    RadioInstance* radio,
+    RADIO_RESP code,
+    RadioResponseObserverFunc func,
     gpointer user_data);
+
+gulong
+radio_instance_add_response_observer_with_priority(
+    RadioInstance* radio,
+    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_RESP code,
+    RadioResponseObserverFunc func,
+    gpointer user_data); /* Since 1.4.3 */
 
 gulong
 radio_instance_add_indication_observer(
@@ -222,6 +257,14 @@ radio_instance_add_indication_observer(
     gpointer user_data);
 
 gulong
+radio_instance_add_indication_observer_with_priority(
+    RadioInstance* radio,
+    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_IND code,
+    RadioIndicationObserverFunc func,
+    gpointer user_data); /* Since 1.4.3 */
+
+gulong
 radio_instance_add_response_handler(
     RadioInstance* radio,
     RADIO_RESP code,
@@ -229,10 +272,10 @@ radio_instance_add_response_handler(
     gpointer user_data);
 
 gulong
-radio_instance_add_response_observer(
+radio_instance_add_indication_handler(
     RadioInstance* radio,
-    RADIO_RESP code,
-    RadioResponseObserverFunc func,
+    RADIO_IND code,
+    RadioIndicationHandlerFunc func,
     gpointer user_data);
 
 gulong
@@ -252,6 +295,12 @@ radio_instance_add_enabled_handler(
     RadioInstance* radio,
     RadioInstanceFunc func,
     gpointer user_data); /* Since 1.0.7 */
+
+gulong
+radio_instance_add_connected_handler(
+    RadioInstance* radio,
+    RadioInstanceFunc func,
+    gpointer user_data); /* Since 1.4.3 */
 
 void
 radio_instance_remove_handler(

@@ -37,7 +37,7 @@
 #include "test_common.h"
 #include "test_gbinder.h"
 
-#include "radio_instance.h"
+#include "radio_instance_p.h"
 #include "radio_util.h"
 
 #include <gutil_strv.h>
@@ -216,9 +216,9 @@ test_null(
     radio_instance_remove_handler(NULL, 0);
     radio_instance_remove_handlers(NULL, NULL, 0);
     radio_instance_unref(NULL);
+    radio_instance_cancel_request(NULL, 0);
 
     g_assert(radio_instance_is_dead(NULL));
-
     g_assert(!radio_instance_get(NULL, NULL));
     g_assert(!radio_instance_get("", NULL));
     g_assert(!radio_instance_get("/dev/binder", NULL));
@@ -229,10 +229,13 @@ test_null(
     g_assert(!radio_instance_new_with_modem_and_slot(NULL, NULL, NULL, 0));
     g_assert(!radio_instance_new_with_version(NULL, NULL, DEFAULT_INTERFACE));
     g_assert(!radio_instance_new_with_version(NULL, "", DEFAULT_INTERFACE));
+    g_assert(!radio_instance_new_with_version(NULL, "foo", DEFAULT_INTERFACE));
     g_assert(!radio_instance_new_request(NULL, 0));
     g_assert(!radio_instance_ack(NULL));
     g_assert(!radio_instance_ref(NULL));
+    g_assert(!radio_instance_rpc_header_size(NULL, 0));
     g_assert(!radio_instance_send_request_sync(NULL, 0, NULL));
+    g_assert(!radio_instance_add_request_observer(NULL, 0, NULL, NULL));
     g_assert(!radio_instance_add_indication_handler(NULL, 0, NULL, NULL));
     g_assert(!radio_instance_add_indication_observer(NULL, 0, NULL, NULL));
     g_assert(!radio_instance_add_response_handler(NULL, 0, NULL, NULL));
@@ -240,9 +243,11 @@ test_null(
     g_assert(!radio_instance_add_ack_handler(NULL, NULL, NULL));
     g_assert(!radio_instance_add_death_handler(NULL, NULL, NULL));
     g_assert(!radio_instance_add_enabled_handler(NULL, NULL, NULL));
+    g_assert(!radio_instance_add_connected_handler(NULL, NULL, NULL));
     g_assert(!radio_instance_req_name(NULL, UNKNOWN_REQ));
     g_assert(!radio_instance_resp_name(NULL, UNKNOWN_RESP));
     g_assert(!radio_instance_ind_name(NULL, UNKNOWN_IND));
+    g_assert(!radio_instance_send_request(NULL,0,NULL,NULL,NULL,NULL,NULL));
 }
 
 /*==========================================================================*
@@ -262,6 +267,7 @@ test_basic(
     const RADIO_INTERFACE version = RADIO_INTERFACE_1_4;
     const char* slot = "slot1";
     const char* fqname = RADIO_1_0 "/slot1";
+    GQuark q;
 
     /* This fails because there's no radio service */
     g_assert(!radio_instance_new_with_version(DEV, slot, DEFAULT_INTERFACE));
@@ -279,10 +285,20 @@ test_basic(
     g_assert(radio == radio_instance_new_with_version(DEV, slot, version));
     radio_instance_unref(radio);
 
+    /* Test quarks */
+    q = radio_instance_ind_quark(radio, UNKNOWN_IND);
+    g_assert(q);
+    g_assert(q == radio_instance_ind_quark(radio, UNKNOWN_IND));
+
+    /* Expecting non-zero RPC header size for a valid request code */
+    g_assert(radio_instance_rpc_header_size(radio, RADIO_REQ_DIAL));
+    g_assert_cmpuint(radio_instance_rpc_header_size(radio, UNKNOWN_REQ),==,0);
+
     /* The one we have created must still be there */
     g_assert(radio == radio_instance_get_with_version(DEV, slot, version));
 
     /* NULL callbacks are ignored */
+    g_assert(!radio_instance_add_request_observer(radio, 0, NULL, NULL));
     g_assert(!radio_instance_add_indication_handler(radio, 0, NULL, NULL));
     g_assert(!radio_instance_add_indication_observer(radio, 0, NULL, NULL));
     g_assert(!radio_instance_add_response_handler(radio, 0, NULL, NULL));
@@ -290,6 +306,7 @@ test_basic(
     g_assert(!radio_instance_add_ack_handler(radio, NULL, NULL));
     g_assert(!radio_instance_add_death_handler(radio, NULL, NULL));
     g_assert(!radio_instance_add_enabled_handler(radio, NULL, NULL));
+    g_assert(!radio_instance_add_connected_handler(radio, NULL, NULL));
 
     /* Formatting unknown codes (RadioInstance owns the string) */
     g_assert_cmpstr(radio_instance_req_name(radio, UNKNOWN_REQ), == ,
@@ -311,6 +328,147 @@ test_basic(
     g_assert(radios[0] == radio);
     g_assert(!radios[1]);
 
+    radio_instance_unref(radio);
+    test_service_cleanup(&service);
+    gbinder_remote_object_unref(remote);
+    gbinder_servicemanager_unref(sm);
+}
+
+/*==========================================================================*
+ * connected
+ *==========================================================================*/
+
+typedef struct test_connected_data {
+    int observed;
+    int connected;
+} TestConnected;
+
+static
+void
+test_connected_observer_high(
+    RadioInstance* radio,
+    RADIO_IND code,
+    RADIO_IND_TYPE type,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestConnected* test = user_data;
+
+    g_assert_cmpint(test->observed % 3, == ,0);
+    g_assert(!test->observed || test->connected);
+    test->observed++;
+    GDEBUG_("%d", test->observed);
+}
+
+static
+void
+test_connected_observer_default(
+    RadioInstance* radio,
+    RADIO_IND code,
+    RADIO_IND_TYPE type,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestConnected* test = user_data;
+
+    g_assert_cmpint(test->observed % 3, == ,1);
+    g_assert_cmpint(test->connected, == ,1);
+    test->observed++;
+    GDEBUG_("%d", test->observed);
+}
+
+static
+void
+test_connected_observer_low(
+    RadioInstance* radio,
+    RADIO_IND code,
+    RADIO_IND_TYPE type,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestConnected* test = user_data;
+
+    g_assert_cmpint(test->observed % 3, == ,2);
+    g_assert_cmpint(test->connected, == ,1);
+    test->observed++;
+    GDEBUG_("%d", test->observed);
+}
+
+static
+void
+test_connected_cb(
+    RadioInstance* radio,
+    gpointer user_data)
+{
+    TestConnected* test = user_data;
+
+    g_assert(!test->connected);
+    test->connected++;
+    GDEBUG_("");
+}
+
+static
+void
+test_connected(
+    void)
+{
+    GBinderServiceManager* sm = gbinder_servicemanager_new(DEV);
+    GBinderRemoteObject* remote;
+    RadioInstance* radio;
+    TestRadioService service;
+    GBinderClient* ind;
+    GBinderLocalRequest* req;
+    const RADIO_INTERFACE version = RADIO_INTERFACE_1_4;
+    const char* slot = "slot1";
+    const char* fqname = RADIO_1_0 "/slot1";
+    TestConnected test;
+    ulong id[4];
+
+    memset(&test, 0, sizeof(test));
+
+    /* Register the service to create an instance */
+    test_service_init(&service);
+    remote = test_gbinder_servicemanager_new_service(sm, fqname, service.obj);
+    radio = radio_instance_new_with_version(DEV, slot, version);
+    g_assert(radio);
+    g_assert(!radio->connected);
+
+    id[0] = radio_instance_add_indication_observer_with_priority(radio,
+        RADIO_INSTANCE_PRIORITY_LOWEST,  RADIO_IND_ANY,
+        test_connected_observer_low, &test);
+    id[1] = radio_instance_add_indication_observer(radio,RADIO_IND_ANY,
+        test_connected_observer_default, &test);
+    id[2] = radio_instance_add_indication_observer_with_priority(radio,
+        RADIO_INSTANCE_PRIORITY_HIGHEST + 1 /* becomes HIGHEST */,
+        RADIO_IND_ANY, test_connected_observer_high, &test);
+    id[3] = radio_instance_add_connected_handler(radio, test_connected_cb,
+        &test);
+
+    /* Issue rilConnected */
+    g_assert(service.ind_obj);
+    ind = gbinder_client_new2(service.ind_obj,
+        TEST_ARRAY_AND_COUNT(radio_ind_iface_info));
+    g_assert(ind);
+    req = gbinder_client_new_request2(ind, RADIO_IND_RIL_CONNECTED);
+    gbinder_local_request_append_int32(req, RADIO_IND_ACK_EXP);
+
+    g_assert_cmpint(gbinder_client_transact_sync_oneway(ind,
+        RADIO_IND_RIL_CONNECTED, req), == ,GBINDER_STATUS_OK);
+    g_assert_cmpint(test.observed, == ,3);
+    g_assert_cmpint(test.connected, == ,1);
+    g_assert(radio->connected);
+
+    /* Second time around observer is still called but connect handler isn't */
+    g_assert_cmpint(gbinder_client_transact_sync_oneway(ind,
+        RADIO_IND_RIL_CONNECTED, req), == ,GBINDER_STATUS_OK);
+    g_assert_cmpint(test.observed, == ,6);
+    g_assert_cmpint(test.connected, == ,1);
+    g_assert(radio->connected);
+
+    gbinder_local_request_unref(req);
+    gbinder_client_unref(ind);
+
+    radio_instance_remove_all_handlers(radio, id);
     radio_instance_unref(radio);
     test_service_cleanup(&service);
     gbinder_remote_object_unref(remote);
@@ -446,7 +604,7 @@ test_ind(
         UNKNOWN_IND, req), == ,GBINDER_STATUS_FAILED);
     gbinder_local_request_unref(req);
     gbinder_client_unref(ind);
-    
+
     radio_instance_remove_all_handlers(radio, id);
     radio_instance_unref(radio);
     test_service_cleanup(&service);
@@ -462,6 +620,20 @@ test_ind(
 
 static
 void
+test_req_observe(
+    RadioInstance* radio,
+    RADIO_REQ code,
+    GBinderLocalRequest* args,
+    gpointer user_data)
+{
+    int* count = user_data;
+
+    (*count)++;
+    GDEBUG_("%d", *count);
+}
+
+static
+void
 test_req(
     void)
 {
@@ -472,14 +644,32 @@ test_req(
     GBinderRemoteObject* remote;
     GBinderLocalRequest* req;
     RadioInstance* radio;
+    int count[3];
+    gulong id[3];
 
     test_service_init(&service);
     remote = test_gbinder_servicemanager_new_service(sm, fqname, service.obj);
     radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+
+    memset(count, 0, sizeof(count));
+    id[0] = radio_instance_add_request_observer(radio, RADIO_REQ_ANY,
+        test_req_observe, count + 0);
+    id[1] = radio_instance_add_request_observer(radio, TEST_REQ,
+        test_req_observe, count + 1);
+    id[2] = radio_instance_add_request_observer(radio, TEST_REQ + 1,
+        test_req_observe, count + 2); /* Won't be called */
+    g_assert(id[0]);
+    g_assert(id[1]);
+    g_assert(id[2]);
+
     req = radio_instance_new_request(radio, TEST_REQ);
     gbinder_local_request_append_int32(req, 123);
     g_assert(radio_instance_send_request_sync(radio, TEST_REQ, req));
     g_assert_cmpint(test_service_req_count(&service, TEST_REQ), == ,1);
+    g_assert_cmpint(count[0], == ,1);
+    g_assert_cmpint(count[1], == ,1);
+    g_assert_cmpint(count[2], == ,0);
+    radio_instance_remove_all_handlers(radio, id);
 
     radio_instance_unref(radio);
     test_service_cleanup(&service);
@@ -496,7 +686,22 @@ test_req(
 
 static
 void
-test_resp_observe(
+test_resp_ack_observe(
+    RadioInstance* radio,
+    RADIO_REQ code,
+    GBinderLocalRequest* args,
+    gpointer user_data)
+{
+    int* count = user_data;
+
+    (*count)++;
+    GDEBUG_("%d", *count);
+    g_assert_cmpint(code, == ,RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT);
+}
+
+static
+void
+test_resp_observe1(
     RadioInstance* radio,
     RADIO_RESP code,
     const RadioResponseInfo* info,
@@ -505,9 +710,25 @@ test_resp_observe(
 {
     guint* expected = user_data;
 
-    GDEBUG("Observing resp %u", code);
+    GDEBUG("Observing resp %u (high prio)", code);
     g_assert_cmpuint(info->serial, == ,*expected);
     *expected = 0;
+}
+
+static
+void
+test_resp_observe2(
+    RadioInstance* radio,
+    RADIO_RESP code,
+    const RadioResponseInfo* info,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    guint* expected = user_data;
+
+    /* Serial must be already cleared by test_resp_observe1 */
+    GDEBUG("Observing resp %u (default prio)", code);
+    g_assert_cmpuint(*expected, == ,0);
 }
 
 static
@@ -546,7 +767,8 @@ test_resp(
     RadioResponseInfo info;
     GBinderWriter writer;
     guint handle_serial, observe_serial;
-    gulong id[2];
+    int ack_count = 0;
+    gulong id[4];
 
     test_service_init(&service);
 
@@ -558,8 +780,13 @@ test_resp(
     radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
     id[0] = radio_instance_add_response_handler(radio, TEST_RESP,
         test_resp_handle, &handle_serial);
-    id[1] = radio_instance_add_response_observer(radio, TEST_RESP,
-        test_resp_observe, &observe_serial);
+    id[1] = radio_instance_add_response_observer_with_priority(radio,
+        RADIO_INSTANCE_PRIORITY_HIGHEST, TEST_RESP,
+        test_resp_observe1, &observe_serial);
+    id[2] = radio_instance_add_response_observer(radio, TEST_RESP,
+        test_resp_observe2, &observe_serial);
+    id[3] = radio_instance_add_request_observer(radio,
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT, test_resp_ack_observe, &ack_count);
 
     g_assert(service.resp_obj);
     resp = gbinder_client_new2(service.resp_obj,
@@ -569,36 +796,52 @@ test_resp(
     req = gbinder_client_new_request2(resp, TEST_RESP);
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp, TEST_RESP, req),
         == ,GBINDER_STATUS_OK);
+    g_assert_cmpint(ack_count, == ,0);
     g_assert_cmpint(test_service_req_count(&service,
-        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,0);
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,ack_count);
 
     /* Add the info and try again */
     gbinder_local_request_init_writer(req, &writer);
     gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp, TEST_RESP, req),
         == ,GBINDER_STATUS_OK);
+    g_assert_cmpint(ack_count, == ,1);
     g_assert_cmpint(test_service_req_count(&service,
-        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,1);
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,ack_count);
     g_assert(!handle_serial); /* Cleared by the handler */
     g_assert(!observe_serial); /* Cleared by the observer */
 
     /* Remove the handler and check auto-ack */
     radio_instance_remove_handlers(radio, id, 1);
     handle_serial = observe_serial = info.serial = 124;
+
+    gbinder_local_request_unref(req);
+    req = gbinder_client_new_request2(resp, TEST_RESP);
+    gbinder_local_request_init_writer(req, &writer);
+    gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
+
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp, TEST_RESP, req),
         == ,GBINDER_STATUS_OK);
+    g_assert_cmpint(ack_count, == ,2);  /* Acked */
     g_assert_cmpint(test_service_req_count(&service,
-        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,2); /* Acked */
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,ack_count);
     g_assert_cmpuint(handle_serial, == ,info.serial); /* No handler */
     g_assert(!observe_serial); /* Cleared by the observer */
 
     /* RADIO_RESP_SOLICITED won't be acked */
     info.type = RADIO_RESP_SOLICITED;
     handle_serial = observe_serial = info.serial = 125;
+
+    gbinder_local_request_unref(req);
+    req = gbinder_client_new_request2(resp, TEST_RESP);
+    gbinder_local_request_init_writer(req, &writer);
+    gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
+
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp, TEST_RESP, req),
         == ,GBINDER_STATUS_OK);
+    g_assert_cmpint(ack_count, == ,2); /* Not acked */
     g_assert_cmpint(test_service_req_count(&service,
-        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,2); /* Not acked */
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,ack_count);
     g_assert_cmpuint(handle_serial, == ,info.serial); /* No handler */
     g_assert(!observe_serial); /* Cleared by the observer */
 
@@ -686,6 +929,148 @@ test_ack(
     test_service_cleanup(&service);
     gbinder_remote_object_unref(remote);
     gbinder_servicemanager_unref(sm);
+}
+
+/*==========================================================================*
+ * send_req
+ *==========================================================================*/
+
+static
+void
+test_send_req_complete_cb(
+    RadioInstance* instance,
+    gulong id,
+    int status,
+    void* user_data1,
+    void* user_data2)
+{
+    gulong* expected_id = user_data1;
+
+    GDEBUG("tx %lu completed", id);
+    g_assert_cmpuint(id, == ,*expected_id);
+    *expected_id = 0;
+    test_quit_later((GMainLoop*)user_data2);
+}
+
+static
+void
+test_send_req_destroy_cb(
+    void* user_data1,
+    void* user_data2)
+{
+    gulong* id = user_data1;
+
+    GDEBUG("tx %lu done", *id);
+    g_assert(*id);
+    *id = 0;
+    test_quit_later((GMainLoop*)user_data2);
+}
+
+static
+void
+test_send_req_complete_not_reached(
+    RadioInstance* instance,
+    gulong id,
+    int status,
+    void* user_data1,
+    void* user_data2)
+{
+    g_assert_not_reached();
+}
+
+static
+void
+test_send_req_destroy_not_reached(
+    void* user_data1,
+    void* user_data2)
+{
+    g_assert_not_reached();
+}
+
+static
+void
+test_send_req(
+    void)
+{
+    const char* slot = "slot1";
+    const char* fqname = RADIO_1_0 "/slot1";
+    TestRadioService service;
+    GMainLoop* loop = g_main_loop_new(NULL, FALSE);
+    GBinderServiceManager* sm = gbinder_servicemanager_new(DEV);
+    GBinderRemoteObject* remote;
+    GBinderLocalRequest* req;
+    RadioInstance* radio;
+    guint serial = 123;
+    gulong tx;
+
+    test_service_init(&service);
+    remote = test_gbinder_servicemanager_new_service(sm, fqname, service.obj);
+    radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+
+    /* Submit and wait for the completion callback to be invoked */
+    req = radio_instance_new_request(radio, RADIO_REQ_GET_MUTE);
+    gbinder_local_request_append_int32(req, serial);
+    tx = radio_instance_send_request(radio, RADIO_REQ_GET_MUTE, req,
+        test_send_req_complete_cb, NULL, &tx, loop);
+    gbinder_local_request_unref(req);
+    g_assert(tx);
+    GDEBUG("tx %lu submitted", tx);
+
+    test_run(&test_opt, loop);
+    g_assert(!tx); /* Cleared by the completion handler */
+
+    /* Submit and wait for the destroy callback to be invoked */
+    serial = 124;
+    req = radio_instance_new_request(radio, RADIO_REQ_GET_MUTE);
+    gbinder_local_request_append_int32(req, serial);
+    tx = radio_instance_send_request(radio, RADIO_REQ_GET_MUTE, req,
+        NULL, test_send_req_destroy_cb, &tx, loop);
+    gbinder_local_request_unref(req);
+    g_assert(tx);
+    GDEBUG("tx %lu submitted", tx);
+
+    test_run(&test_opt, loop);
+    g_assert(!tx); /* Cleared by the destroy callback */
+
+    /* Submit, cancel and wait for the destroy callback to be invoked */
+    serial = 125;
+    req = radio_instance_new_request(radio, RADIO_REQ_GET_MUTE);
+    gbinder_local_request_append_int32(req, serial);
+    tx = radio_instance_send_request(radio, RADIO_REQ_GET_MUTE, req,
+       test_send_req_complete_not_reached, test_send_req_destroy_cb,
+       &tx, loop);
+    gbinder_local_request_unref(req);
+    g_assert(tx);
+    GDEBUG("canceling tx %lu and waiting for destroy callback", tx);
+    radio_instance_cancel_request(radio, tx);
+
+    test_run(&test_opt, loop);
+    g_assert(!tx); /* Cleared by the destroy callback */
+
+    /* Submit without callbacks and cancel */
+    req = radio_instance_new_request(radio, RADIO_REQ_GET_MUTE);
+    gbinder_local_request_append_int32(req, serial);
+    tx = radio_instance_send_request(radio, RADIO_REQ_GET_MUTE, req,
+        NULL, NULL, NULL, NULL);
+    gbinder_local_request_unref(req);
+    g_assert(tx);
+    GDEBUG("canceling tx %lu", tx);
+    radio_instance_cancel_request(radio, tx);
+
+    /* radio_instance_send_request() fails if the remote is dead */
+    test_gbinder_remote_object_kill(remote);
+    req = radio_instance_new_request(radio, RADIO_REQ_GET_MUTE);
+    gbinder_local_request_append_int32(req, serial);
+    tx = radio_instance_send_request(radio, RADIO_REQ_GET_MUTE, req,
+        NULL, test_send_req_destroy_not_reached, NULL, NULL);
+    gbinder_local_request_unref(req);
+    g_assert(!tx);
+
+    radio_instance_unref(radio);
+    test_service_cleanup(&service);
+    gbinder_remote_object_unref(remote);
+    gbinder_servicemanager_unref(sm);
+    g_main_loop_unref(loop);
 }
 
 /*==========================================================================*
@@ -801,10 +1186,12 @@ int main(int argc, char* argv[])
     g_test_init(&argc, &argv, NULL);
     g_test_add_func(TEST_("null"), test_null);
     g_test_add_func(TEST_("basic"), test_basic);
+    g_test_add_func(TEST_("connected"), test_connected);
     g_test_add_func(TEST_("ind"), test_ind);
     g_test_add_func(TEST_("req"), test_req);
     g_test_add_func(TEST_("resp"), test_resp);
     g_test_add_func(TEST_("ack"), test_ack);
+    g_test_add_func(TEST_("send_req"), test_send_req);
     g_test_add_func(TEST_("enabled"), test_enabled);
     g_test_add_func(TEST_("death"), test_death);
     test_init(&test_opt, argc, argv);
