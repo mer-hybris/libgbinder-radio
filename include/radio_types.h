@@ -224,7 +224,7 @@ typedef enum radio_ind_filter {
         RADIO_IND_FILTER_SIGNAL_STRENGTH |
         RADIO_IND_FILTER_FULL_NETWORK_STATE |
         RADIO_IND_FILTER_DATA_CALL_DORMANCY,
-    /* Those below appeared in IRadio@1.2 */
+    /* Since 1.4.4 (those appeared in IRadio@1.2) */
     RADIO_IND_FILTER_LINK_CAPACITY_ESTIMATE = 0x08,
     RADIO_IND_FILTER_PHYSICAL_CHANNEL_CONFIG = 0x10,
     RADIO_IND_FILTER_ALL_1_2 = ~0
