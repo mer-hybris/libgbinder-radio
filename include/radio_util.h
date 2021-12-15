@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2019 Jolla Ltd.
- * Copyright (C) 2018-2019 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2021 Jolla Ltd.
+ * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -55,7 +55,13 @@ radio_ind_name(
 
 RADIO_RESP
 radio_req_resp(
-    RADIO_REQ req);
+    RADIO_REQ req)
+    G_GNUC_DEPRECATED_FOR(radio_req_resp2);
+
+RADIO_RESP
+radio_req_resp2(
+    RADIO_REQ req,
+    RADIO_INTERFACE iface); /* Since 1.4.5 */
 
 G_END_DECLS
 

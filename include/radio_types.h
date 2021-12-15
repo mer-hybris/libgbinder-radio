@@ -1918,8 +1918,9 @@ G_STATIC_ASSERT(sizeof(RadioNetworkScanResult) == 24);
     c(145,146,getModemStackStatus,GET_MODEM_STACK_STATUS)
 
 #define RADIO_CALL_1_4(c) /* Since 1.2.5 */ \
+    c(146,155,setupDataCall_1_4,SETUP_DATA_CALL_1_4) \
     c(149,147,emergencyDial,EMERGENCY_DIAL) \
-    c(150,148,startNetworkScan_1_4,START_NETWORKSCAN_1_4) \
+    c(150,148,startNetworkScan_1_4,START_NETWORK_SCAN_1_4) \
     c(151,152,getPreferredNetworkTypeBitmap,GET_PREFERRED_NETWORK_TYPE_BITMAP) \
     c(152,153,setPreferredNetworkTypeBitmap,SET_PREFERRED_NETWORK_TYPE_BITMAP) \
     c(153,156,setAllowedCarriers_1_4,SET_ALLOWED_CARRIERS_1_4) \
@@ -2023,7 +2024,6 @@ typedef enum radio_req {
 
     /* android.hardware.radio@1.4::IRadio */
     RADIO_CALL_1_4(RADIO_REQ_) /* Since 1.2.5 */
-    RADIO_REQ_SETUP_DATA_CALL_1_4 = 146,
     RADIO_REQ_SET_INITIAL_ATTACH_APN_1_4 = 147,
     RADIO_REQ_SET_DATA_PROFILE_1_4 = 148,
     RADIO_1_4_REQ_LAST = RADIO_REQ_GET_SIGNAL_STRENGTH_1_4
@@ -2064,7 +2064,6 @@ typedef enum radio_resp {
     RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_4 = 150,
     RADIO_RESP_GET_ICC_CARD_STATUS_1_4 = 151,
     RADIO_RESP_GET_DATA_CALL_LIST_1_4 = 154,
-    RADIO_RESP_SETUP_DATA_CALL_1_4 = 155,
     RADIO_1_4_RESP_LAST = RADIO_RESP_GET_SIGNAL_STRENGTH_1_4
 #undef RADIO_RESP_
 } RADIO_RESP;
@@ -2080,6 +2079,10 @@ typedef enum radio_resp {
         RADIO_RESP_GET_DATA_CALL_LIST_1_4
 #define RADIO_RESP_SETUP_DATA_CALL_RESPONSE_1_4 \
         RADIO_RESP_SETUP_DATA_CALL_1_4
+
+/* These were renamed in 1.4.5 for consistency */
+#define RADIO_REQ_START_NETWORKSCAN_1_4 RADIO_REQ_START_NETWORK_SCAN_1_4
+#define RADIO_RESP_START_NETWORKSCAN_1_4 RADIO_RESP_START_NETWORK_SCAN_1_4
 
 typedef enum radio_ind {
     RADIO_IND_ANY = 0,

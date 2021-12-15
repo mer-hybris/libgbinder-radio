@@ -58,7 +58,6 @@ radio_req_name(
     case RADIO_REQ_SET_INDICATION_FILTER_1_2:  return "setIndicationFilter_1_2";
     case RADIO_REQ_SETUP_DATA_CALL_1_2:        return "setupDataCall_1_2";
     case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:   return "deactivateDataCall_1_2";
-    case RADIO_REQ_SETUP_DATA_CALL_1_4:        return "setupDataCall_1_4";
     case RADIO_REQ_SET_INITIAL_ATTACH_APN_1_4: return "setInitialAttachApn_1_4";
     case RADIO_REQ_SET_DATA_PROFILE_1_4:       return "setDataProfile_1_4";
     case RADIO_REQ_ANY:
@@ -101,8 +100,6 @@ radio_resp_name(
         return "getIccCardStatusResponse_1_4";
     case RADIO_RESP_GET_DATA_CALL_LIST_RESPONSE_1_4:
         return "getDataCallListResponse_1_4";
-    case RADIO_RESP_SETUP_DATA_CALL_RESPONSE_1_4:
-        return "setupDataCallResponse_1_4";
     case RADIO_RESP_ANY:
         break;
     }
@@ -151,19 +148,230 @@ radio_req_resp(
     RADIO_CALL_1_3(RADIO_REQ_)
     RADIO_CALL_1_4(RADIO_REQ_)
 #undef RADIO_REQ_
+    case RADIO_REQ_SETUP_DATA_CALL_1_2:
+        return RADIO_RESP_SETUP_DATA_CALL;
+    case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:
+        return RADIO_RESP_DEACTIVATE_DATA_CALL;
+    case RADIO_REQ_START_NETWORK_SCAN_1_2:
+        return RADIO_RESP_START_NETWORK_SCAN;
+    case RADIO_REQ_SET_INITIAL_ATTACH_APN_1_4:
+        return RADIO_RESP_SET_INITIAL_ATTACH_APN;
+    case RADIO_REQ_SET_DATA_PROFILE_1_4:
+        return RADIO_RESP_SET_DATA_PROFILE;
+    case RADIO_REQ_SET_INDICATION_FILTER_1_2:
+        return RADIO_RESP_SET_INDICATION_FILTER;
+
+    /*
+     * All these still need to be listed here to ensure a compilation
+     * warnings when something gets added to RADIO_REQ enum.
+     */
     case RADIO_REQ_SET_RESPONSE_FUNCTIONS:
     case RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT:
-    case RADIO_REQ_START_NETWORK_SCAN_1_2:
-    case RADIO_REQ_SET_INDICATION_FILTER_1_2:
-    case RADIO_REQ_SETUP_DATA_CALL_1_2:
-    case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:
-    case RADIO_REQ_SETUP_DATA_CALL_1_4:
-    case RADIO_REQ_SET_INITIAL_ATTACH_APN_1_4:
-    case RADIO_REQ_SET_DATA_PROFILE_1_4:
     case RADIO_REQ_ANY:
         break;
     }
     return RADIO_RESP_NONE;
+}
+
+/**
+ * And this is a version of radio_req_resp which takes IRadio interface
+ * version into account. This one is OK to use.
+ */
+RADIO_RESP
+radio_req_resp2(
+    RADIO_REQ req,
+    RADIO_INTERFACE iface) /* Since 1.4.5 */
+{
+    switch (req) {
+    /*
+     * Requests expecting a response from a previous version of the
+     * interface.
+     */
+    case RADIO_REQ_SETUP_DATA_CALL_1_2:
+        return RADIO_RESP_SETUP_DATA_CALL;
+    case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:
+        return RADIO_RESP_DEACTIVATE_DATA_CALL;
+    case RADIO_REQ_START_NETWORK_SCAN_1_2:
+        return RADIO_RESP_START_NETWORK_SCAN;
+    case RADIO_REQ_SET_INITIAL_ATTACH_APN_1_4:
+        return RADIO_RESP_SET_INITIAL_ATTACH_APN;
+    case RADIO_REQ_SET_DATA_PROFILE_1_4:
+        return RADIO_RESP_SET_DATA_PROFILE;
+    case RADIO_REQ_SET_INDICATION_FILTER_1_2:
+ /* case RADIO_REQ_SET_INDICATION_FILTER_1_5: */
+        return RADIO_RESP_SET_INDICATION_FILTER;
+
+    /*
+     * Requests which may receive a response from a higher version of
+     * the interface.
+     */
+
+    /*
+     * getIccCardStatus
+     * getIccCardStatusResponse
+     * getIccCardStatusResponse_1_2
+     * getIccCardStatusResponse_1_4
+     * getIccCardStatusResponse_1_5
+     * ...
+     */
+    case RADIO_REQ_GET_ICC_CARD_STATUS:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+            return RADIO_RESP_GET_ICC_CARD_STATUS;
+        case RADIO_INTERFACE_1_2:
+        case RADIO_INTERFACE_1_3:
+            return RADIO_RESP_GET_ICC_CARD_STATUS_1_2;
+        case RADIO_INTERFACE_1_4:
+            return RADIO_RESP_GET_ICC_CARD_STATUS_1_4;
+        /*
+        case RADIO_INTERFACE_1_5:
+            return RADIO_RESP_GET_ICC_CARD_STATUS_1_5;
+        */
+        case RADIO_INTERFACE_NONE:
+        case RADIO_INTERFACE_COUNT:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    /*
+     * getCellInfoList
+     * getCellInfoListResponse
+     * getCellInfoListResponse_1_2
+     * getCellInfoListResponse_1_4
+     * getCellInfoListResponse_1_5 <= the last one
+     * getCellInfoList_1_6
+     */
+    case RADIO_REQ_GET_CELL_INFO_LIST:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+            return RADIO_RESP_GET_CELL_INFO_LIST;
+        case RADIO_INTERFACE_1_2:
+        case RADIO_INTERFACE_1_3:
+            return RADIO_RESP_GET_CELL_INFO_LIST_1_2;
+        case RADIO_INTERFACE_1_4:
+            return RADIO_RESP_GET_CELL_INFO_LIST_1_4;
+        /*
+        default:
+            return RADIO_RESP_GET_CELL_INFO_LIST_1_5;
+        */
+        case RADIO_INTERFACE_NONE:
+        case RADIO_INTERFACE_COUNT:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    /*
+     * getCurrentCalls
+     * getCurrentCallsResponse
+     * getCurrentCallsResponse_1_2 <= the last one
+     * getCurrentCalls_1_6
+     */
+    case RADIO_REQ_GET_CURRENT_CALLS:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+            return RADIO_RESP_GET_CURRENT_CALLS;
+        default:
+            return RADIO_RESP_GET_CURRENT_CALLS_1_2;
+        case RADIO_INTERFACE_NONE:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    /*
+     * getSignalStrength
+     * getSignalStrengthResponse
+     * getSignalStrengthResponse_1_2 <= the last one
+     * getSignalStrength_1_4
+     */
+    case RADIO_REQ_GET_SIGNAL_STRENGTH:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+            return RADIO_RESP_GET_SIGNAL_STRENGTH;
+        default:
+            return RADIO_RESP_GET_SIGNAL_STRENGTH_1_2;
+        case RADIO_INTERFACE_NONE:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    /*
+     * getVoiceRegistrationState
+     * getVoiceRegistrationStateResponse
+     * getVoiceRegistrationStateResponse_1_2 <= the last one
+     * getVoiceRegistrationState_1_5
+     */
+    case RADIO_REQ_GET_VOICE_REGISTRATION_STATE:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+            return RADIO_RESP_GET_VOICE_REGISTRATION_STATE;
+        default:
+            return RADIO_RESP_GET_VOICE_REGISTRATION_STATE_1_2;
+        case RADIO_INTERFACE_NONE:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    /*
+     * getDataRegistrationState
+     * getDataRegistrationStateResponse
+     * getDataRegistrationStateResponse_1_2
+     * getDataRegistrationStateResponse_1_4 <= the last one
+     * getDataRegistrationState_1_5
+     */
+    case RADIO_REQ_GET_DATA_REGISTRATION_STATE:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+            return RADIO_RESP_GET_DATA_REGISTRATION_STATE;
+        case RADIO_INTERFACE_1_2:
+        case RADIO_INTERFACE_1_3:
+            return RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2;
+        default:
+            return RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_4;
+        case RADIO_INTERFACE_NONE:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    /*
+     * getDataCallList
+     * getDataCallListResponse
+     * getDataCallListResponse_1_4
+     * getDataCallListResponse_1_5 <= the last one
+     * getDataCallList_1_6
+     */
+    case RADIO_REQ_GET_DATA_CALL_LIST:
+        switch (iface) {
+        case RADIO_INTERFACE_1_0:
+        case RADIO_INTERFACE_1_1:
+        case RADIO_INTERFACE_1_2:
+        case RADIO_INTERFACE_1_3:
+            return RADIO_RESP_GET_DATA_CALL_LIST;
+        case RADIO_INTERFACE_1_4:
+            return RADIO_RESP_GET_DATA_CALL_LIST_1_4;
+        /*
+        default:
+            return RADIO_RESP_GET_DATA_CALL_LIST_1_5;
+        */
+        case RADIO_INTERFACE_NONE:
+        case RADIO_INTERFACE_COUNT:
+            break;
+        }
+        return RADIO_RESP_NONE;
+
+    default:
+        break;
+    }
+
+    /* Fallback */
+    G_GNUC_BEGIN_IGNORE_DEPRECATIONS
+    return radio_req_resp(req);
+    G_GNUC_END_IGNORE_DEPRECATIONS
 }
 
 /*
