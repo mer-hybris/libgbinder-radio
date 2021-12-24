@@ -121,10 +121,11 @@ struct radio_request {
     guint retry_delay_ms;       /* Delay before each retry, in milliseconds */
     guint timeout_ms;           /* Timeout, in milliseconds (0 = default) */
     gint64 deadline;            /* Monotonic time, in microseconds */
+    gint64 scheduled;           /* Monotonic time, in microseconds */
     gulong tx_id;               /* Id of the request transaction */
     gboolean blocking;          /* TRUE if this request blocks all others */
     gboolean acked;
-    RadioClient* client;        /* Not a reference */
+    RadioBase* object;          /* Not a reference */
     RadioRequestGroup* group;   /* Not a reference */
     RadioRequest* queue_next;
 };

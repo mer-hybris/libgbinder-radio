@@ -39,6 +39,8 @@
 
 #include <radio_types.h>
 
+typedef struct radio_base RadioBase;
+
 #define RADIO_INTERNAL G_GNUC_INTERNAL
 
 /* Miliseconds to microseconds */

@@ -249,6 +249,7 @@ test_gbinder_date_replace_int32(
         gsize size = 0;
         TestGBinderDataItem* item;
 
+        if (data->iface) size += strlen(data->iface);
         for (item = data->items; item; item = item->next) {
             if (size == offset) {
                 guint32 prev;

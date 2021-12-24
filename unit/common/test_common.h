@@ -65,6 +65,7 @@ test_quit_later_n(
     guint n);
 
 #define TEST_TIMEOUT_SEC (20)
+#define TEST_TIMEOUT_MS (1000*TEST_TIMEOUT_SEC)
 
 /* Helper macros */
 

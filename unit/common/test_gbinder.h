@@ -142,6 +142,10 @@ GBinderLocalObject*
 test_gbinder_remote_object_to_local(
     GBinderRemoteObject* remote);
 
+/* test_gbinder_client.c */
+
+extern int test_gbinder_client_tx_fail_count;
+
 /* test_gbinder_servicemanager.c */
 
 GBinderRemoteObject*

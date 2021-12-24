@@ -34,83 +34,170 @@
  * any official policies, either expressed or implied.
  */
 
-#ifndef RADIO_CLIENT_PRIVATE_H
-#define RADIO_CLIENT_PRIVATE_H
+#ifndef RADIO_BASE_H
+#define RADIO_BASE_H
 
 #include "radio_types_p.h"
-#include "radio_client.h"
 
 #include <glib-object.h>
 
-struct radio_client {
+/* RadioBaseFunc must be compatible with RadioClientFunc */
+typedef
+void
+(*RadioBaseFunc)(
+    RadioBase* base,
+    gpointer user_data);
+
+typedef
+void
+(*RadioBaseRequestSentFunc)(
+    RadioBase* base,
+    RadioRequest* req,
+    int status);
+
+typedef struct radio_base_priv RadioBasePriv;
+
+struct radio_base {
     GObject object;
-    RadioInstance* instance;
+    RadioBasePriv* priv;
 };
 
+typedef struct radio_base_class {
+    GObjectClass parent;
+    gboolean (*is_dead)(RadioBase* base);
+    gboolean (*can_submit_requests)(RadioBase* base);
+    GBinderLocalRequest* (*new_request)(RadioBase* base, guint32 code);
+    gulong (*send_request)(RadioBase* base, RadioRequest* req,
+        RadioBaseRequestSentFunc sent);
+    void (*cancel_request)(RadioBase* base, gulong id);
+} RadioBaseClass;
+
+GType radio_base_get_type(void) RADIO_INTERNAL;
+#define RADIO_TYPE_BASE radio_base_get_type()
+#define RADIO_BASE(obj) G_TYPE_CHECK_INSTANCE_CAST((obj), \
+        RADIO_TYPE_BASE, RadioBase)
+#define RADIO_BASE_CLASS(klass) G_TYPE_CHECK_CLASS_CAST((klass), \
+        RADIO_TYPE_BASE, RadioBaseClass)
+#define RADIO_BASE_GET_CLASS(obj) G_TYPE_INSTANCE_GET_CLASS((obj), \
+        THIS_TYPE, RadioBaseClass)
+
 void
-radio_client_register_request(
-    RadioClient* client,
+radio_base_initialize(
+    RadioBase* base)
+    RADIO_INTERNAL;
+
+RadioBase*
+radio_base_ref(
+    RadioBase* base)
+    RADIO_INTERNAL;
+
+void
+radio_base_unref(
+    RadioBase* base)
+    RADIO_INTERNAL;
+
+void
+radio_base_register_request(
+    RadioBase* base,
     RadioRequest* req)
     RADIO_INTERNAL;
 
 void
-radio_client_unregister_request(
-    RadioClient* client,
+radio_base_unregister_request(
+    RadioBase* base,
     RadioRequest* req)
     RADIO_INTERNAL;
 
 gboolean
-radio_client_submit_request(
-    RadioClient* client,
+radio_base_submit_request(
+    RadioBase* base,
     RadioRequest* req)
     RADIO_INTERNAL;
 
 gboolean
-radio_client_retry_request(
-    RadioClient* client,
+radio_base_retry_request(
+    RadioBase* base,
     RadioRequest* req)
     RADIO_INTERNAL;
 
 void
-radio_client_request_dropped(
+radio_base_request_dropped(
     RadioRequest* req)
     RADIO_INTERNAL;
 
 guint
-radio_client_timeout_ms(
-    RadioClient* client,
+radio_base_timeout_ms(
+    RadioBase* base,
     RadioRequest* req)
     RADIO_INTERNAL;
 
 void
-radio_client_reset_timeout(
-    RadioClient* client)
-    RADIO_INTERNAL;
-
-void
-radio_client_reset_timeout(
-    RadioClient* client)
+radio_base_reset_timeout(
+    RadioBase* base)
     RADIO_INTERNAL;
 
 RADIO_BLOCK
-radio_client_block_status(
-    RadioClient* client,
+radio_base_block_status(
+    RadioBase* base,
     RadioRequestGroup* group)
     RADIO_INTERNAL;
 
 RADIO_BLOCK
-radio_client_block(
-    RadioClient* client,
+radio_base_block(
+    RadioBase* base,
     RadioRequestGroup* group)
     RADIO_INTERNAL;
 
 void
-radio_client_unblock(
-    RadioClient* client,
+radio_base_unblock(
+    RadioBase* base,
     RadioRequestGroup* group)
     RADIO_INTERNAL;
 
-#endif /* RADIO_CLIENT_PRIVATE_H */
+gboolean
+radio_base_handle_resp(
+    RadioBase* base,
+    guint32 code,
+    const RadioResponseInfo* info,
+    const GBinderReader* reader)
+    RADIO_INTERNAL;
+
+void
+radio_base_handle_ack(
+    RadioBase* base,
+    guint32 serial)
+    RADIO_INTERNAL;
+
+void
+radio_base_handle_death(
+    RadioBase* base)
+    RADIO_INTERNAL;
+
+void
+radio_base_submit_requests(
+    RadioBase* base)
+    RADIO_INTERNAL;
+
+void
+radio_base_cancel_request(
+    RadioBase* base,
+    RadioRequest* req)
+    RADIO_INTERNAL;
+
+void
+radio_base_set_default_timeout(
+    RadioBase* self,
+    int ms)
+    RADIO_INTERNAL;
+
+gulong
+radio_base_add_owner_changed_handler(
+    RadioBase* base,
+    RadioBaseFunc func,
+    gpointer user_data)
+    RADIO_INTERNAL;
+
+#endif /* RADIO_BASE_H */
 
 /*
  * Local Variables:

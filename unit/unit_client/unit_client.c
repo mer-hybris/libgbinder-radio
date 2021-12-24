@@ -37,8 +37,8 @@
 #include "test_common.h"
 #include "test_gbinder.h"
 
+#include "radio_client.h"
 #include "radio_instance.h"
-#include "radio_client_p.h"
 #include "radio_request_p.h"
 #include "radio_request_group_p.h"
 #include "radio_util.h"
@@ -47,7 +47,7 @@
 #include <gutil_log.h>
 
 #define DEFAULT_INTERFACE RADIO_INTERFACE_1_0
-#define DEV GBINDER_DEFAULT_BINDER
+#define DEV GBINDER_DEFAULT_HWBINDER
 
 static TestOpt test_opt;
 
@@ -446,8 +446,6 @@ test_null(
     radio_client_remove_handler(NULL, 0);
     radio_client_remove_handler(NULL, 1);
     radio_client_remove_handlers(NULL, NULL, 0);
-    radio_client_block(NULL, NULL);
-    radio_client_unblock(NULL, NULL);
 
     g_assert(!radio_client_new(NULL));
     g_assert(!radio_client_ref(NULL));
@@ -459,8 +457,6 @@ test_null(
     g_assert(!radio_client_add_death_handler(NULL, NULL, NULL));
     g_assert(!radio_client_add_connected_handler(NULL, NULL, NULL));
     g_assert_cmpint(radio_client_interface(NULL), == ,RADIO_INTERFACE_NONE);
-    g_assert_cmpint(radio_client_block_status(NULL, NULL), == ,
-        RADIO_BLOCK_NONE);
 
     radio_request_unref(NULL);
     radio_request_drop(NULL);
@@ -1374,7 +1370,7 @@ test_retry(
     test_common_connected(&test.common);
 
     radio_request_set_retry_func(req, NULL); /* Use the default */
-    radio_request_set_retry(req, 0, TEST_RETRY_COUNT);
+    radio_request_set_retry(req, 10, TEST_RETRY_COUNT);
     radio_request_submit(req);
     radio_request_unref(req);
 
@@ -1401,8 +1397,8 @@ test_retry2(
     test_common_connected(&test.common);
 
     /* Long timeout (longer than the test timeout) */
-    radio_request_set_timeout(req, TEST_TIMEOUT_SEC * 2000);
-    radio_request_set_retry(req, 0, TEST_RETRY_COUNT);
+    radio_request_set_timeout(req, TEST_TIMEOUT_MS * 2);
+    radio_request_set_retry(req, 10, TEST_RETRY_COUNT);
     g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
 
@@ -1453,6 +1449,41 @@ test_fail(
     /* Submit stays in the NEW state since the remote object is dead */
     g_assert(!radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_NEW);
+
+    g_assert(!destroyed);
+    radio_request_drop(req);
+    g_assert(destroyed);
+
+    test_common_cleanup(&test);
+}
+
+/*==========================================================================*
+ * fail_tx
+ *==========================================================================*/
+
+static
+void
+test_fail_tx(
+    void)
+{
+    TestCommon test;
+    RadioRequest* req;
+    gboolean destroyed = FALSE;
+
+    test_common_init(&test);
+    test_common_connected(&test);
+
+    req = radio_request_new(test.client, RADIO_REQ_GET_MUTE, NULL,
+        test_complete_not_reached, test_destroy_once, &destroyed);
+    g_assert(req);
+    g_assert(req->serial);
+
+    /* Fail one transaction */
+    test_gbinder_client_tx_fail_count = 1;
+
+    /* Request switches in the FAILED state */
+    g_assert(!radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_FAILED);
 
     g_assert(!destroyed);
     radio_request_drop(req);
@@ -1560,7 +1591,7 @@ test_timeout(
 
     g_assert(req);
     g_assert(req->serial);
-    radio_request_set_timeout(req, 2000 * TEST_TIMEOUT_SEC);
+    radio_request_set_timeout(req, 2 * TEST_TIMEOUT_MS);
     radio_request_submit(req);
     radio_request_set_timeout(req, 100); /* Resets the timeout */
     radio_request_set_timeout(req, 100); /* Has no effect */
@@ -1616,7 +1647,78 @@ test_timeout2(
 
 static
 void
+test_timeout3_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    GDEBUG("status %u", status);
+    g_assert_cmpuint(req->retry_count, == ,1);
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_TIMEOUT);
+    g_assert_cmpint(resp, == ,RADIO_RESP_NONE);
+    g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
+    g_assert(!test->completed);
+    g_assert(!test->destroyed);
+    test->completed = TRUE;
+    test_quit_later(test->loop);
+}
+
+static
+void
+test_timeout3_destroy_cb(
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    GDEBUG("done");
+    g_assert(test->completed);
+    g_assert(!test->destroyed);
+    test->destroyed = TRUE;
+}
+
+static
+void
 test_timeout3(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequest* req = radio_request_new(client, ERROR_REQ, NULL,
+        test_timeout3_complete_cb, test_timeout3_destroy_cb, &test);
+
+    g_assert(req);
+    g_assert(req->serial);
+    radio_request_set_retry(req, TEST_TIMEOUT_MS, 2);
+    radio_request_set_timeout(req, 2 * TEST_TIMEOUT_MS);
+    radio_request_submit(req);
+    radio_request_set_timeout(req, 100); /* Resets the timeout */
+    radio_request_set_timeout(req, 100); /* Has no effect */
+
+    /* And expect the request to fail */
+    test_common_connected(&test.common);
+    test_run(&test_opt, test.loop);
+
+    g_assert(test.completed);
+    g_assert(!test.destroyed);
+    radio_request_unref(req);
+    g_assert(test.destroyed);
+
+    /* Cleanup */
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * timeout4
+ *==========================================================================*/
+
+static
+void
+test_timeout4(
     void)
 {
     TestSimple test;
@@ -1634,7 +1736,7 @@ test_timeout3(
         test_complete_not_reached, NULL, NULL);
     g_assert(req1);
     g_assert(req1->serial);
-    radio_request_set_timeout(req1, TEST_TIMEOUT_SEC * 2000);
+    radio_request_set_timeout(req1, TEST_TIMEOUT_MS * 2);
     radio_request_submit(req1);
 
     /* And this one will time out quickly */
@@ -1819,11 +1921,13 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("retry"), test_retry);
     g_test_add_func(TEST_("retry2"), test_retry2);
     g_test_add_func(TEST_("fail"), test_fail);
+    g_test_add_func(TEST_("fail_tx"), test_fail_tx);
     g_test_add_func(TEST_("err"), test_err);
     g_test_add_func(TEST_("err2"), test_err2);
     g_test_add_func(TEST_("timeout"), test_timeout);
     g_test_add_func(TEST_("timeout2"), test_timeout2);
     g_test_add_func(TEST_("timeout3"), test_timeout3);
+    g_test_add_func(TEST_("timeout4"), test_timeout4);
     g_test_add_func(TEST_("death"), test_death);
     g_test_add_func(TEST_("destroy"), test_destroy);
     test_init(&test_opt, argc, argv);

@@ -34,10 +34,9 @@
  * any official policies, either expressed or implied.
  */
 
+#include "radio_base.h"
 #include "radio_request_p.h"
 #include "radio_request_group_p.h"
-#include "radio_instance_p.h"
-#include "radio_client_p.h"
 #include "radio_log.h"
 
 #include <gbinder_local_request.h>
@@ -47,7 +46,6 @@
 
 typedef struct radio_request_object {
     RadioRequest pub;
-    RadioInstance* instance;
     GDestroyNotify destroy;
     gsize serial_offset;
     gboolean dropped;
@@ -68,16 +66,13 @@ radio_request_object_cancel(
 {
     RadioRequest* req = &self->pub;
 
-    if (req->tx_id) {
-        radio_instance_cancel_request(self->instance, req->tx_id);
-        req->tx_id = 0;
-    }
+    radio_base_cancel_request(req->object, req);
     if (!self->dropped) {
         self->dropped = TRUE;
         radio_request_group_remove(req->group, req);
-        radio_client_request_dropped(req);
+        radio_base_request_dropped(req);
     }
-    radio_client_unregister_request(req->client, req);
+    radio_base_unregister_request(req->object, req);
 }
 
 static
@@ -103,7 +98,6 @@ radio_request_free(
         destroy(req->user_data);
     }
     gbinder_local_request_unref(req->args);
-    radio_instance_unref(self->instance);
     gutil_slice_free(self);
 }
 
@@ -136,7 +130,7 @@ radio_request_default_retry(
 static
 RadioRequest*
 radio_request_object_new(
-    RadioClient* client,
+    RadioBase* base,
     RadioRequestGroup* group,
     RADIO_REQ code,
     GBinderWriter* writer,
@@ -148,7 +142,6 @@ radio_request_object_new(
     RadioRequest* req = &self->pub;
     GBinderWriter tmp;
 
-    self->instance = radio_instance_ref(client->instance);
     self->destroy = destroy;
     g_atomic_int_set(&self->refcount, 1);
 
@@ -159,12 +152,12 @@ radio_request_object_new(
     req->retry = radio_request_default_retry;
 
     /* Assign serial and add to the group */
-    radio_client_register_request(client, req);
+    radio_base_register_request(base, req);
     radio_request_group_add(group, req);
 
     /* Build the argument list */
     if (!writer) writer = &tmp;
-    req->args = radio_instance_new_request(client->instance, code);
+    req->args = RADIO_BASE_GET_CLASS(base)->new_request(base, code);
     gbinder_local_request_init_writer(req->args, writer);
     self->serial_offset = gbinder_writer_bytes_written(writer);
     gbinder_writer_append_int32(writer, req->serial);
@@ -207,8 +200,8 @@ radio_request_new(
     GDestroyNotify destroy,
     void* user_data)
 {
-    return client ? radio_request_object_new(client, NULL, code,
-        writer, complete, destroy, user_data) : NULL;
+    return client ? radio_request_object_new(RADIO_BASE(client), NULL,
+        code, writer, complete, destroy, user_data) : NULL;
 }
 
 RadioRequest*
@@ -220,8 +213,8 @@ radio_request_new2(
     GDestroyNotify destroy,
     void* user_data)
 {
-    return group ? radio_request_object_new(group->client, group, code,
-        writer, complete, destroy, user_data) : NULL;
+    return group ? radio_request_object_new(RADIO_BASE(group->client), group,
+        code, writer, complete, destroy, user_data) : NULL;
 }
 
 RadioRequest*
@@ -260,14 +253,14 @@ radio_request_set_timeout(
     guint ms)
 {
     if (G_LIKELY(req) && req->timeout_ms != ms) {
-        RadioClient* client = req->client;
+        RadioBase* base = req->object;
 
         req->timeout_ms = ms;
-        if (client && req->state >= RADIO_REQUEST_STATE_QUEUED) {
-            const uint timeout = radio_client_timeout_ms(client, req);
+        if (base && req->state >= RADIO_REQUEST_STATE_QUEUED) {
+            const uint timeout = radio_base_timeout_ms(base, req);
 
             req->deadline = g_get_monotonic_time() + MICROSEC(timeout);
-            radio_client_reset_timeout(client);
+            radio_base_reset_timeout(base);
         }
     }
 }
@@ -298,14 +291,14 @@ gboolean
 radio_request_submit(
     RadioRequest* req)
 {
-    return req && req->client && radio_client_submit_request(req->client, req);
+    return req && req->object && radio_base_submit_request(req->object, req);
 }
 
 gboolean
 radio_request_retry(
     RadioRequest* req)
 {
-    return req && req->client && radio_client_retry_request(req->client, req);
+    return req && req->object && radio_base_retry_request(req->object, req);
 }
 
 void
