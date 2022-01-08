@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -34,9 +34,10 @@
  * any official policies, either expressed or implied.
  */
 
+#include "radio_base.h"
+#include "radio_client.h"
 #include "radio_request_group_p.h"
 #include "radio_request_p.h"
-#include "radio_client_p.h"
 #include "radio_log.h"
 
 #include <gutil_macros.h>
@@ -68,11 +69,11 @@ radio_request_group_free(
     RadioRequestGroupObject* self)
 {
     RadioRequestGroup* group = &self->pub;
-    RadioClient* client = group->client;
+    RadioBase* base = RADIO_BASE(group->client);
 
-    radio_client_unblock(client, group);
+    radio_base_unblock(base, group);
     g_hash_table_destroy(self->requests);
-    radio_client_unref(client);
+    radio_base_unref(base);
     gutil_slice_free(self);
 }
 
@@ -194,7 +195,7 @@ RADIO_BLOCK
 radio_request_group_block_status(
     RadioRequestGroup* group)
 {
-    return group ? radio_client_block_status(group->client, group) :
+    return group ? radio_base_block_status(RADIO_BASE(group->client), group) :
         RADIO_BLOCK_NONE;
 }
 
@@ -202,7 +203,7 @@ RADIO_BLOCK
 radio_request_group_block(
     RadioRequestGroup* group)
 {
-    return group ? radio_client_block(group->client, group) :
+    return group ? radio_base_block(RADIO_BASE(group->client), group) :
         RADIO_BLOCK_NONE;
 }
 
@@ -211,7 +212,7 @@ radio_request_group_unblock(
     RadioRequestGroup* group)
 {
     if (group) {
-        radio_client_unblock(group->client, group);
+        radio_base_unblock(RADIO_BASE(group->client), group);
     }
 }
 

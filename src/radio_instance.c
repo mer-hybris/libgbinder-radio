@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2021 Jolla Ltd.
- * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2022 Jolla Ltd.
+ * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -38,7 +38,7 @@
 
 #include "radio_instance_p.h"
 #include "radio_registry_p.h"
-#include "radio_util.h"
+#include "radio_util_p.h"
 #include "radio_log.h"
 
 #include <gbinder.h>
@@ -69,22 +69,15 @@ struct radio_instance_priv {
 
 G_DEFINE_TYPE(RadioInstance, radio_instance, G_TYPE_OBJECT)
 
-G_STATIC_ASSERT(RADIO_INSTANCE_PRIORITY_LOWEST == 0);
-G_STATIC_ASSERT(RADIO_INSTANCE_PRIORITY_HIGHEST == 7);
-#define FOREACH_PRIORITY(p) p(0) p(1) p(2) p(3) p(4) p(5) p(6) p(7)
-#define RADIO_INSTANCE_PRIORITY_INDEX(p) ((p) - RADIO_INSTANCE_PRIORITY_LOWEST)
-#define RADIO_INSTANCE_PRIORITY_COUNT \
-    (RADIO_INSTANCE_PRIORITY_INDEX(RADIO_INSTANCE_PRIORITY_HIGHEST) + 1)
-
 typedef enum radio_instance_signal {
     #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_REQUEST_##x,
-    FOREACH_PRIORITY(SIGNAL_INDEX)
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_INDEX)
     #undef SIGNAL_INDEX
     #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_RESPONSE_##x,
-    FOREACH_PRIORITY(SIGNAL_INDEX)
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_INDEX)
     #undef SIGNAL_INDEX
     #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_INDICATION_##x,
-    FOREACH_PRIORITY(SIGNAL_INDEX)
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_INDEX)
     #undef SIGNAL_INDEX
     SIGNAL_HANDLE_RESPONSE,
     SIGNAL_HANDLE_INDICATION,
@@ -97,21 +90,21 @@ typedef enum radio_instance_signal {
 
 static const char* radio_instance_signal_observe_request_name[] = {
     #define SIGNAL_NAME(x) "radio-instance-observe-request-" #x,
-    FOREACH_PRIORITY(SIGNAL_NAME)
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_NAME)
     #undef SIGNAL_NAME
     NULL
 };
 
 static const char* radio_instance_signal_observe_response_name[] = {
     #define SIGNAL_NAME(x) "radio-instance-observe-response-" #x,
-    FOREACH_PRIORITY(SIGNAL_NAME)
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_NAME)
     #undef SIGNAL_NAME
     NULL
 };
 
 static const char* radio_instance_signal_observe_indication_name[] = {
     #define SIGNAL_NAME(x) "radio-instance-observe-indication-" #x,
-    FOREACH_PRIORITY(SIGNAL_NAME)
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_NAME)
     #undef SIGNAL_NAME
     NULL
 };
@@ -249,20 +242,6 @@ radio_instance_resp_quark(
 }
 
 static
-guint
-radio_instance_priority_index(
-    RADIO_INSTANCE_PRIORITY priority)
-{
-    if (priority < RADIO_INSTANCE_PRIORITY_LOWEST) {
-        return 0;
-    } else if (priority > RADIO_INSTANCE_PRIORITY_HIGHEST) {
-        return RADIO_INSTANCE_PRIORITY_COUNT - 1;
-    } else {
-        return priority - RADIO_INSTANCE_PRIORITY_LOWEST;
-    }
-}
-
-static
 void
 radio_instance_notify_request_observers(
     RadioInstance* self,
@@ -272,7 +251,7 @@ radio_instance_notify_request_observers(
     GQuark quark = 0;
     int i;
 
-    for (i = RADIO_INSTANCE_PRIORITY_COUNT - 1; i >= 0; i--) {
+    for (i = RADIO_OBSERVER_PRIORITY_COUNT - 1; i >= 0; i--) {
         guint id = radio_instance_signals[SIGNAL_OBSERVE_REQUEST_0 + i];
 
         if (id) {
@@ -309,14 +288,14 @@ radio_instance_indication(
             const GQuark quark = radio_instance_ind_quark(self, code);
             const guint* signals = radio_instance_signals +
                 SIGNAL_OBSERVE_INDICATION_0;
-            int p = RADIO_INSTANCE_PRIORITY_HIGHEST;
+            int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
             gboolean handled = FALSE;
 
             /* High-priority observers are notified first */
-            for (; p > RADIO_INSTANCE_PRIORITY_DEFAULT; p--) {
-                if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+            for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
+                if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
                     g_signal_emit(self, signals
-                        [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                        [RADIO_OBSERVER_PRIORITY_INDEX(p)],
                         quark, code, type, &reader);
                 }
             }
@@ -340,10 +319,10 @@ radio_instance_indication(
                 quark, code, type, &reader, &handled);
 
             /* And then remaining observers in their priority order */
-            for (; p >= RADIO_INSTANCE_PRIORITY_LOWEST; p--) {
-                if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+            for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
+                if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
                     g_signal_emit(self, signals
-                        [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                        [RADIO_OBSERVER_PRIORITY_INDEX(p)],
                         quark, code, type, &reader);
                 }
             }
@@ -402,14 +381,14 @@ radio_instance_response(
                 const GQuark quark = radio_instance_resp_quark(self, code);
                 const guint* signals = radio_instance_signals +
                     SIGNAL_OBSERVE_RESPONSE_0;
-                int p = RADIO_INSTANCE_PRIORITY_HIGHEST;
+                int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
                 gboolean handled = FALSE;
 
                 /* High-priority observers are notified first */
-                for (; p > RADIO_INSTANCE_PRIORITY_DEFAULT; p--) {
-                    if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+                for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
+                    if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
                         g_signal_emit(self, signals
-                            [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                            [RADIO_OBSERVER_PRIORITY_INDEX(p)],
                             quark, code, info, &reader);
                     }
                 }
@@ -420,10 +399,10 @@ radio_instance_response(
                     quark, code, info, &reader, &handled);
 
                 /* And then remaining observers in their priority order */
-                for (; p >= RADIO_INSTANCE_PRIORITY_LOWEST; p--) {
-                    if (signals[RADIO_INSTANCE_PRIORITY_INDEX(p)]) {
+                for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
+                    if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
                         g_signal_emit(self, signals
-                            [RADIO_INSTANCE_PRIORITY_INDEX(p)],
+                            [RADIO_OBSERVER_PRIORITY_INDEX(p)],
                             quark, code, info, &reader);
                     }
                 }
@@ -1041,19 +1020,19 @@ radio_instance_add_request_observer(
     gpointer user_data) /* Since 1.4.3 */
 {
     return radio_instance_add_request_observer_with_priority(self,
-        RADIO_INSTANCE_PRIORITY_DEFAULT, code, func, user_data);
+        RADIO_OBSERVER_PRIORITY_DEFAULT, code, func, user_data);
 }
 
 gulong
 radio_instance_add_request_observer_with_priority(
     RadioInstance* self,
-    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_OBSERVER_PRIORITY priority,
     RADIO_REQ code,
     RadioRequestObserverFunc func,
     gpointer user_data) /* Since 1.4.3 */
 {
     if (G_LIKELY(self) && G_LIKELY(func)) {
-        const guint index = radio_instance_priority_index(priority);
+        const guint index = radio_observer_priority_index(priority);
         const RADIO_INSTANCE_SIGNAL sig = SIGNAL_OBSERVE_REQUEST_0 + index;
 
         /* Register signal on demand */
@@ -1082,19 +1061,19 @@ radio_instance_add_response_observer(
     gpointer user_data)
 {
     return radio_instance_add_response_observer_with_priority(self,
-        RADIO_INSTANCE_PRIORITY_DEFAULT, code, func, user_data);
+        RADIO_OBSERVER_PRIORITY_DEFAULT, code, func, user_data);
 }
 
 gulong
 radio_instance_add_response_observer_with_priority(
     RadioInstance* self,
-    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_OBSERVER_PRIORITY priority,
     RADIO_RESP code,
     RadioResponseObserverFunc func,
     gpointer user_data) /* Since 1.4.3 */
 {
     if (G_LIKELY(self) && G_LIKELY(func)) {
-        const guint index = radio_instance_priority_index(priority);
+        const guint index = radio_observer_priority_index(priority);
         const RADIO_INSTANCE_SIGNAL sig = SIGNAL_OBSERVE_RESPONSE_0 + index;
 
         /* Register signal on demand */
@@ -1123,19 +1102,19 @@ radio_instance_add_indication_observer(
     gpointer user_data)
 {
     return radio_instance_add_indication_observer_with_priority(self,
-        RADIO_INSTANCE_PRIORITY_DEFAULT, code, func, user_data);
+        RADIO_OBSERVER_PRIORITY_DEFAULT, code, func, user_data);
 }
 
 gulong
 radio_instance_add_indication_observer_with_priority(
     RadioInstance* self,
-    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_OBSERVER_PRIORITY priority,
     RADIO_IND code,
     RadioIndicationObserverFunc func,
     gpointer user_data) /* Since 1.4.3 */
 {
     if (G_LIKELY(self) && G_LIKELY(func)) {
-        const guint index = radio_instance_priority_index(priority);
+        const guint index = radio_observer_priority_index(priority);
         const RADIO_INSTANCE_SIGNAL sig = SIGNAL_OBSERVE_INDICATION_0 + index;
 
         /* Register signal on demand */

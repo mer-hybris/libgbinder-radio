@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -39,7 +39,7 @@
 
 /* This API exists since 1.4.3 */
 
-#include <radio_types.h>
+#include <radio_config_types.h>
 
 /*
  * Basic workflow
@@ -70,9 +70,11 @@ typedef enum radio_tx_status {
 
 /*
  * RadioRequestCompleteFunc
+ * RadioConfigRequestCompleteFunc
  *
  * Invoked upon completion of each request. If an error occurs,
- * resp is set to RADIO_RESP_NONE (zero) and args is NULL.
+ * resp is set to zero (RADIO_RESP_NONE, RADIO_CONFIG_RESP_NONE)
+ * and args is NULL.
  *
  * The status argument is the status of the request transaction.
  * If it's anything other than RADIO_TX_STATUS_OK, the request
@@ -92,6 +94,16 @@ void
     const GBinderReader* args,
     gpointer user_data);
 
+typedef
+void
+(*RadioConfigRequestCompleteFunc)(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_CONFIG_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* args,
+    gpointer user_data); /* Since 1.4.6 */
+
 /*
  * RadioRequestRetryFunc
  *
@@ -110,7 +122,7 @@ gboolean
 (*RadioRequestRetryFunc)(
     RadioRequest* req,
     RADIO_TX_STATUS status,
-    RADIO_RESP resp,
+    guint32 resp, /* Was RADIO_RESP before 1.4.6 */
     RADIO_ERROR error,
     const GBinderReader* args,
     void* user_data);
@@ -119,7 +131,7 @@ RadioRequest*
 radio_request_new(
     RadioClient* client,
     RADIO_REQ code,
-    GBinderWriter* writer, /* NULL if serial is the only arg */
+    GBinderWriter* args, /* NULL if serial is the only arg */
     RadioRequestCompleteFunc complete,
     GDestroyNotify destroy,
     void* user_data)
@@ -129,10 +141,20 @@ RadioRequest*
 radio_request_new2(
     RadioRequestGroup* group,
     RADIO_REQ code,
-    GBinderWriter* writer, /* NULL if serial is the only arg */
+    GBinderWriter* args, /* NULL if serial is the only arg */
     RadioRequestCompleteFunc complete,
     GDestroyNotify destroy,
     void* user_data)
+    G_GNUC_WARN_UNUSED_RESULT;
+
+RadioRequest*
+radio_config_request_new(
+    RadioConfig* config,
+    RADIO_CONFIG_REQ code,
+    GBinderWriter* args, /* NULL if serial is the only arg */
+    RadioConfigRequestCompleteFunc complete,
+    GDestroyNotify destroy,
+    void* user_data) /* Since 1.4.6 */
     G_GNUC_WARN_UNUSED_RESULT;
 
 RadioRequest*

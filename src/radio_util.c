@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2021 Jolla Ltd.
- * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2022 Jolla Ltd.
+ * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -34,10 +34,23 @@
  * any official policies, either expressed or implied.
  */
 
-#include "radio_util.h"
+#include "radio_util_p.h"
 #include "radio_log.h"
 
 GLOG_MODULE_DEFINE("gbinder-radio");
+
+guint
+radio_observer_priority_index(
+    RADIO_OBSERVER_PRIORITY priority)
+{
+    if (priority < RADIO_OBSERVER_PRIORITY_LOWEST) {
+        return 0;
+    } else if (priority > RADIO_OBSERVER_PRIORITY_HIGHEST) {
+        return RADIO_OBSERVER_PRIORITY_COUNT - 1;
+    } else {
+        return priority - RADIO_OBSERVER_PRIORITY_LOWEST;
+    }
+}
 
 const char*
 radio_req_name(

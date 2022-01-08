@@ -63,6 +63,8 @@ struct gbinder_client {
     guint nr;
 };
 
+int test_gbinder_client_tx_fail_count = 0;
+
 static
 void
 test_gbinder_client_free(
@@ -342,31 +344,38 @@ gbinder_client_transact(
         GBinderRemoteObject* obj = self->remote;
 
         if (!test_gbinder_remote_object_dead(obj)) {
-            GBinderLocalRequest* tmp = NULL;
-
-            if (!req) {
-                const TestGBinderClientIfaceRange* r =
-                    test_gbinder_client_find_range(self, code);
-
-                if (r) {
-                    req = tmp = test_gbinder_local_request_new(r->iface);
+            if (test_gbinder_client_tx_fail_count) {
+                if (test_gbinder_client_tx_fail_count > 0) {
+                    test_gbinder_client_tx_fail_count--;
                 }
-            }
-            if (req) {
-                TestGBinderClientTx* tx = g_new0(TestGBinderClientTx, 1);
+                GDEBUG("Simulating transaction failure");
+            } else {
+                GBinderLocalRequest* tmp = NULL;
 
-                tx->client = gbinder_client_ref(self);
-                tx->code = code;
-                tx->flags = flags;
-                tx->req = gbinder_local_request_ref(req);
-                tx->reply = reply;
-                tx->destroy = destroy;
-                tx->user_data = user_data;
-                id = g_idle_add_full(G_PRIORITY_DEFAULT,
-                    test_gbinder_client_tx_handle, tx,
-                    test_gbinder_client_tx_destroy);
+                if (!req) {
+                    const TestGBinderClientIfaceRange* r =
+                        test_gbinder_client_find_range(self, code);
+
+                    if (r) {
+                        req = tmp = test_gbinder_local_request_new(r->iface);
+                    }
+                }
+                if (req) {
+                    TestGBinderClientTx* tx = g_new0(TestGBinderClientTx, 1);
+
+                    tx->client = gbinder_client_ref(self);
+                    tx->code = code;
+                    tx->flags = flags;
+                    tx->req = gbinder_local_request_ref(req);
+                    tx->reply = reply;
+                    tx->destroy = destroy;
+                    tx->user_data = user_data;
+                    id = g_idle_add_full(G_PRIORITY_DEFAULT,
+                        test_gbinder_client_tx_handle, tx,
+                        test_gbinder_client_tx_destroy);
+                }
+                gbinder_local_request_unref(tmp);
             }
-            gbinder_local_request_unref(tmp);
         } else {
             GDEBUG("Refusing to perform transaction with a dead object");
         }

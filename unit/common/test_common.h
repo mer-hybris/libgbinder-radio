@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2021 Jolla Ltd.
- * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2022 Jolla Ltd.
+ * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of BSD license as follows:
  *
@@ -65,6 +65,7 @@ test_quit_later_n(
     guint n);
 
 #define TEST_TIMEOUT_SEC (20)
+#define TEST_TIMEOUT_MS (1000*TEST_TIMEOUT_SEC)
 
 /* Helper macros */
 
