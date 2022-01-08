@@ -524,7 +524,7 @@ radio_base_submit_request(
         !RADIO_BASE_GET_CLASS(self)->is_dead(self)) {
         RadioBasePriv* priv = self->priv;
         RadioRequestCompleteFunc complete = req->complete;
-        const uint timeout = radio_base_timeout_ms(self, req);
+        const guint timeout = radio_base_timeout_ms(self, req);
 
         /* Queue the request */
         req->deadline = g_get_monotonic_time() + MICROSEC(timeout);

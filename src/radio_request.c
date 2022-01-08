@@ -273,7 +273,7 @@ radio_request_set_timeout(
 
         req->timeout_ms = ms;
         if (base && req->state >= RADIO_REQUEST_STATE_QUEUED) {
-            const uint timeout = radio_base_timeout_ms(base, req);
+            const guint timeout = radio_base_timeout_ms(base, req);
 
             req->deadline = g_get_monotonic_time() + MICROSEC(timeout);
             radio_base_reset_timeout(base);

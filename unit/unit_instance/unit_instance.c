@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -422,7 +422,7 @@ test_connected(
     const char* slot = "slot1";
     const char* fqname = RADIO_1_0 "/slot1";
     TestConnected test;
-    ulong id[4];
+    gulong id[4];
 
     memset(&test, 0, sizeof(test));
 
@@ -526,7 +526,7 @@ test_ind(
     const char* slot = "slot1";
     const char* fqname = RADIO_1_0 "/slot1";
     int code[2];
-    ulong id[2];
+    gulong id[2];
 
     /* Register the service to create an instance */
     test_service_init(&service);
