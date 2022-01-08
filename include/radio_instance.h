@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2021 Jolla Ltd.
- * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2022 Jolla Ltd.
+ * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -62,11 +62,11 @@ struct radio_instance {
     gboolean connected; /* rilConnected received */
 };
 
-typedef enum radio_instance_priority {
-    RADIO_INSTANCE_PRIORITY_LOWEST,
-    RADIO_INSTANCE_PRIORITY_DEFAULT = 2,
-    RADIO_INSTANCE_PRIORITY_HIGHEST = 7
-} RADIO_INSTANCE_PRIORITY; /* Since 1.4.3 */
+/* These were introduced in 1.4.3 and then renamed in 1.4.6 */
+#define RADIO_INSTANCE_PRIORITY_LOWEST RADIO_OBSERVER_PRIORITY_LOWEST
+#define RADIO_INSTANCE_PRIORITY_DEFAULT RADIO_OBSERVER_PRIORITY_DEFAULT
+#define RADIO_INSTANCE_PRIORITY_HIGHEST RADIO_OBSERVER_PRIORITY_HIGHEST
+#define RADIO_INSTANCE_PRIORITY RADIO_OBSERVER_PRIORITY
 
 typedef
 void
@@ -229,7 +229,7 @@ radio_instance_add_request_observer(
 gulong
 radio_instance_add_request_observer_with_priority(
     RadioInstance* radio,
-    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_OBSERVER_PRIORITY priority,
     RADIO_REQ code,
     RadioRequestObserverFunc func,
     gpointer user_data); /* Since 1.4.3 */
@@ -244,7 +244,7 @@ radio_instance_add_response_observer(
 gulong
 radio_instance_add_response_observer_with_priority(
     RadioInstance* radio,
-    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_OBSERVER_PRIORITY priority,
     RADIO_RESP code,
     RadioResponseObserverFunc func,
     gpointer user_data); /* Since 1.4.3 */
@@ -259,7 +259,7 @@ radio_instance_add_indication_observer(
 gulong
 radio_instance_add_indication_observer_with_priority(
     RadioInstance* radio,
-    RADIO_INSTANCE_PRIORITY priority,
+    RADIO_OBSERVER_PRIORITY priority,
     RADIO_IND code,
     RadioIndicationObserverFunc func,
     gpointer user_data); /* Since 1.4.3 */

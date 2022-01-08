@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -134,7 +134,7 @@ radio_request_object_new(
     RadioRequestGroup* group,
     RADIO_REQ code,
     GBinderWriter* writer,
-    RadioRequestCompleteFunc complete,
+    RadioRequestGenericCompleteFunc complete,
     GDestroyNotify destroy,
     void* user_data)
 {
@@ -201,7 +201,8 @@ radio_request_new(
     void* user_data)
 {
     return client ? radio_request_object_new(RADIO_BASE(client), NULL,
-        code, writer, complete, destroy, user_data) : NULL;
+        code, writer, (RadioRequestGenericCompleteFunc) complete,
+        destroy, user_data) : NULL;
 }
 
 RadioRequest*
@@ -214,7 +215,22 @@ radio_request_new2(
     void* user_data)
 {
     return group ? radio_request_object_new(RADIO_BASE(group->client), group,
-        code, writer, complete, destroy, user_data) : NULL;
+        code, writer, (RadioRequestGenericCompleteFunc) complete,
+        destroy, user_data) : NULL;
+}
+
+RadioRequest*
+radio_config_request_new(
+    RadioConfig* config,
+    RADIO_CONFIG_REQ code,
+    GBinderWriter* writer, /* NULL if serial is the only arg */
+    RadioConfigRequestCompleteFunc complete,
+    GDestroyNotify destroy,
+    void* user_data) /* Since 1.4.6 */
+{
+    return config ? radio_request_object_new(RADIO_BASE(config), NULL,
+        code, writer, (RadioRequestGenericCompleteFunc) complete,
+        destroy, user_data) : NULL;
 }
 
 RadioRequest*

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -107,11 +107,21 @@ typedef enum radio_request_state {
     RADIO_REQUEST_STATE_DONE
 } RADIO_REQUEST_STATE;
 
+typedef
+void
+(*RadioRequestGenericCompleteFunc)(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    guint32 resp,
+    RADIO_ERROR error,
+    const GBinderReader* args,
+    gpointer user_data);
+
 struct radio_request {
     RADIO_REQUEST_STATE state;
-    RADIO_REQ code;
+    guint32 code;
     GBinderLocalRequest* args;
-    RadioRequestCompleteFunc complete;
+    RadioRequestGenericCompleteFunc complete;
     RadioRequestRetryFunc retry;
     void* user_data;
     guint32 serial;             /* Immutable, generated at creation time */

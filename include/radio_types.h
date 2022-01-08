@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2018-2021 Jolla Ltd.
- * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2018-2022 Jolla Ltd.
+ * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  * Copyright (C) 2021 Open Mobile Platform LLC.
  *
  * You may use this file under the terms of the BSD license as follows:
@@ -43,6 +43,7 @@
 G_BEGIN_DECLS
 
 typedef struct radio_client RadioClient;
+typedef struct radio_config RadioConfig;
 typedef struct radio_instance RadioInstance;
 typedef struct radio_registry RadioRegistry;
 typedef struct radio_request RadioRequest;
@@ -63,6 +64,12 @@ typedef enum radio_interface {
     RADIO_INTERFACE_1_4,
     RADIO_INTERFACE_COUNT
 } RADIO_INTERFACE; /* Since 1.2.0 */
+
+typedef enum radio_observer_priority {
+    RADIO_OBSERVER_PRIORITY_LOWEST,
+    RADIO_OBSERVER_PRIORITY_DEFAULT = 2,
+    RADIO_OBSERVER_PRIORITY_HIGHEST = 7
+} RADIO_OBSERVER_PRIORITY; /* Since 1.4.6 */
 
 #define RADIO_IFACE_PREFIX     "android.hardware.radio@"
 #define RADIO_IFACE            "IRadio"
@@ -92,6 +99,19 @@ typedef enum radio_interface {
 /* Types defined in types.hal */
 
 #define RADIO_ALIGNED(x) __attribute__ ((aligned(x)))
+
+typedef enum radio_resp_type {
+    RADIO_RESP_SOLICITED,
+    RADIO_RESP_SOLICITED_ACK,
+    RADIO_RESP_SOLICITED_ACK_EXP
+} RADIO_RESP_TYPE;
+G_STATIC_ASSERT(sizeof(RADIO_RESP_TYPE) == 4);
+
+typedef enum radio_ind_type {
+    RADIO_IND_UNSOLICITED,
+    RADIO_IND_ACK_EXP
+} RADIO_IND_TYPE;
+G_STATIC_ASSERT(sizeof(RADIO_IND_TYPE) == 4);
 
 typedef enum radio_error {
     RADIO_ERROR_NONE = 0,
@@ -180,19 +200,6 @@ typedef enum radio_error {
     RADIO_ERROR_OEM_ERROR_25 = 525
 } RADIO_ERROR; /* Since 1.4.3 */
 G_STATIC_ASSERT(sizeof(RADIO_ERROR) == 4);
-
-typedef enum radio_resp_type {
-    RADIO_RESP_SOLICITED,
-    RADIO_RESP_SOLICITED_ACK,
-    RADIO_RESP_SOLICITED_ACK_EXP
-} RADIO_RESP_TYPE;
-G_STATIC_ASSERT(sizeof(RADIO_RESP_TYPE) == 4);
-
-typedef enum radio_ind_type {
-    RADIO_IND_UNSOLICITED,
-    RADIO_IND_ACK_EXP
-} RADIO_IND_TYPE;
-G_STATIC_ASSERT(sizeof(RADIO_IND_TYPE) == 4);
 
 typedef enum radio_state {
     RADIO_STATE_OFF = 0,
@@ -1221,8 +1228,6 @@ typedef struct radio_data_call_1_4 {
 } RADIO_ALIGNED(8) RadioDataCall_1_4; /* Since 1.2.5 */
 G_STATIC_ASSERT(sizeof(RadioDataCall_1_4) == 112);
 
-#define DATA_CALL_VERSION (11)
-
 typedef struct radio_sms_write_args {
     gint32 status RADIO_ALIGNED(4);
     GBinderHidlString pdu RADIO_ALIGNED(8);
@@ -2029,6 +2034,7 @@ typedef enum radio_req {
     RADIO_1_4_REQ_LAST = RADIO_REQ_GET_SIGNAL_STRENGTH_1_4
 #undef RADIO_REQ_
 } RADIO_REQ;
+G_STATIC_ASSERT(sizeof(RADIO_REQ) == 4);
 
 typedef enum radio_resp {
     RADIO_RESP_ANY = 0,
@@ -2067,6 +2073,7 @@ typedef enum radio_resp {
     RADIO_1_4_RESP_LAST = RADIO_RESP_GET_SIGNAL_STRENGTH_1_4
 #undef RADIO_RESP_
 } RADIO_RESP;
+G_STATIC_ASSERT(sizeof(RADIO_RESP) == 4);
 
 /* These identifiers were shortened in 1.4.3 */
 #define RADIO_RESP_GET_CELL_INFO_LIST_RESPONSE_1_4 \
@@ -2109,6 +2116,11 @@ typedef enum radio_ind {
     RADIO_1_4_IND_LAST = RADIO_IND_CURRENT_SIGNAL_STRENGTH_1_4 /* Since 1.2.5 */
 #undef RADIO_IND_
 } RADIO_IND;
+G_STATIC_ASSERT(sizeof(RADIO_IND) == 4);
+
+/* Legacy macro. Ignore it */
+
+#define DATA_CALL_VERSION (11)
 
 /* Logging */
 

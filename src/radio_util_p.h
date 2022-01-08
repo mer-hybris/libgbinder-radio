@@ -34,27 +34,18 @@
  * any official policies, either expressed or implied.
  */
 
-#ifndef RADIO_TYPES_PRIVATE_H
-#define RADIO_TYPES_PRIVATE_H
+#ifndef RADIO_UTIL_PRIVATE_H
+#define RADIO_UTIL_PRIVATE_H
 
-#include <radio_types.h>
+#include "radio_types_p.h"
+#include "radio_util.h"
 
-typedef struct radio_base RadioBase;
+guint
+radio_observer_priority_index(
+    RADIO_OBSERVER_PRIORITY priority)
+    RADIO_INTERNAL;
 
-#define RADIO_INTERNAL G_GNUC_INTERNAL
-
-/* Miliseconds to microseconds */
-#define MICROSEC(ms) (((gint64)(ms)) * 1000)
-
-/* Preprocessor magic related to observers */
-G_STATIC_ASSERT(RADIO_OBSERVER_PRIORITY_LOWEST == 0);
-G_STATIC_ASSERT(RADIO_OBSERVER_PRIORITY_HIGHEST == 7);
-#define FOREACH_OBSERVER_PRIORITY(p) p(0) p(1) p(2) p(3) p(4) p(5) p(6) p(7)
-#define RADIO_OBSERVER_PRIORITY_INDEX(p) ((p) - RADIO_OBSERVER_PRIORITY_LOWEST)
-#define RADIO_OBSERVER_PRIORITY_COUNT \
-    (RADIO_OBSERVER_PRIORITY_INDEX(RADIO_OBSERVER_PRIORITY_HIGHEST) + 1)
-
-#endif /* RADIO_TYPES_PRIVATE_H */
+#endif /* RADIO_UTIL_PRIVATE_H */
 
 /*
  * Local Variables:
