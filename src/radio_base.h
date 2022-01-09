@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -83,16 +83,6 @@ GType radio_base_get_type(void) RADIO_INTERNAL;
 
 void
 radio_base_initialize(
-    RadioBase* base)
-    RADIO_INTERNAL;
-
-RadioBase*
-radio_base_ref(
-    RadioBase* base)
-    RADIO_INTERNAL;
-
-void
-radio_base_unref(
     RadioBase* base)
     RADIO_INTERNAL;
 

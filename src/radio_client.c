@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -131,10 +131,10 @@ radio_client_handle_death(
 {
     RadioBase* base = RADIO_BASE(user_data);
 
-    radio_base_ref(base);
+    g_object_ref(base);
     radio_base_handle_death(base);
     g_signal_emit(base, radio_client_signals[SIGNAL_DEATH], 0);
-    radio_base_unref(base);
+    g_object_unref(base);
 }
 
 static

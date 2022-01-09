@@ -69,11 +69,10 @@ radio_request_group_free(
     RadioRequestGroupObject* self)
 {
     RadioRequestGroup* group = &self->pub;
-    RadioBase* base = RADIO_BASE(group->client);
 
-    radio_base_unblock(base, group);
+    radio_base_unblock(RADIO_BASE(group->client), group);
     g_hash_table_destroy(self->requests);
-    radio_base_unref(base);
+    radio_client_unref(group->client);
     gutil_slice_free(self);
 }
 

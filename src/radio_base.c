@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2021-2022 Jolla Ltd.
+ * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -460,25 +460,6 @@ void
 radio_base_initialize(
     RadioBase* self)
 {
-}
-
-RadioBase*
-radio_base_ref(
-    RadioBase* self)
-{
-    if (G_LIKELY(self)) {
-        g_object_ref(self);
-    }
-    return self;
-}
-
-void
-radio_base_unref(
-    RadioBase* self)
-{
-    if (G_LIKELY(self)) {
-        g_object_unref(self);
-    }
 }
 
 void
