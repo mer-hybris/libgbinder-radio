@@ -54,6 +54,16 @@ G_STATIC_ASSERT(RADIO_OBSERVER_PRIORITY_HIGHEST == 7);
 #define RADIO_OBSERVER_PRIORITY_COUNT \
     (RADIO_OBSERVER_PRIORITY_INDEX(RADIO_OBSERVER_PRIORITY_HIGHEST) + 1)
 
+/*
+ * A special assert fatal in debug build and non-fatal in release.
+ * Marks truely unavoidable conditions.
+ */
+#ifdef DEBUG
+#  define DEBUG_ASSERT(expr) g_assert(expr)
+#else
+#  define DEBUG_ASSERT(expr)
+#endif
+
 #endif /* RADIO_TYPES_PRIVATE_H */
 
 /*
