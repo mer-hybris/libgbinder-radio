@@ -392,6 +392,26 @@ test_simple_destroy_cb(
 
 static
 void
+test_simple_complete_ok_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    GDEBUG("status %u", status);
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
+    g_assert(!test->completed);
+    g_assert(!test->destroyed);
+    test->completed = TRUE;
+}
+
+static
+void
 test_simple_complete_fail_cb(
     RadioRequest* req,
     RADIO_TX_STATUS status,
@@ -724,13 +744,28 @@ test_resp_complete_cb(
 {
     TestSimple* test = user_data;
 
-    GDEBUG("resp %d", resp);
     g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
     g_assert_cmpint(resp, == ,RADIO_RESP_GET_MUTE);
     g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
-    g_assert(!test->completed);
-    g_assert(!test->destroyed);
-    test->completed = TRUE;
+    g_assert_cmpint(test->completed, <= ,test->destroyed);
+    test->completed++;
+    GDEBUG("resp %d %d", resp, test->completed);
+}
+
+static
+void
+test_resp_destroy_cb(
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    test->destroyed++;
+    g_assert_cmpint(test->completed, >= ,test->destroyed);
+    GDEBUG("destroy %d", test->destroyed);
+    if (test->destroyed == 2) {
+        GDEBUG("done");
+        test_quit_later(test->loop);
+    }
 }
 
 static
@@ -745,30 +780,36 @@ test_resp(
     TestSimple test;
     RadioClient* client = test_simple_init(&test);
     GBinderClient* resp_client = test.common.service.resp_client;
-    RadioRequest* req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
-        test_resp_complete_cb, test_simple_destroy_cb, &test);
+    RadioRequest* req1 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_resp_complete_cb, test_resp_destroy_cb, &test);
+    RadioRequest* req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_resp_complete_cb, test_resp_destroy_cb, &test);
 
-    g_assert(req);
-    g_assert(req->serial);
-    radio_request_submit(req);
-    radio_request_submit(req); /* Second submit is ignored */
+    g_assert(req1);
+    g_assert(req2);
+    g_assert(req1->serial);
+    g_assert(req2->serial);
+    g_assert(radio_request_submit(req1));
+    g_assert(!radio_request_submit(req1)); /* Second time it fails */
+    g_assert(radio_request_submit(req2));
     test_common_connected(&test.common);
 
-    /* Ack the request*/
+    /* Ack the first one */
     ack = gbinder_client_new_request2(resp_client,
         RADIO_RESP_ACKNOWLEDGE_REQUEST);
-    gbinder_local_request_append_int32(ack, req->serial);
+    gbinder_local_request_append_int32(ack, req1->serial);
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp_client,
         RADIO_RESP_ACKNOWLEDGE_REQUEST, ack), == ,GBINDER_STATUS_OK);
-    g_assert(req->acked);
+    g_assert(req1->acked);
 
-    /* Release our ref, the internal one will be dropped when req is done */
-    radio_request_unref(req);
+    /* Release our refs */
+    radio_request_unref(req1);
+    radio_request_unref(req2);
 
     test_run(&test_opt, test.loop);
 
-    g_assert(test.completed);
-    g_assert(test.destroyed);
+    g_assert_cmpint(test.completed, == ,2);
+    g_assert_cmpint(test.destroyed, == ,test.completed);
 
     /* This ack is invalid and will be ignored */
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp_client,
@@ -802,9 +843,9 @@ void
 test_group(
     void)
 {
-    TestCommon test;
+    TestSimple test;
     RadioRequest* req;
-    RadioClient* client = test_common_init(&test);
+    RadioClient* client = test_simple_init(&test);
     RadioRequestGroup* group = radio_request_group_new(client);
     RadioRequestGroup* group2;
     gulong id;
@@ -812,7 +853,7 @@ test_group(
     int blocked = 0;
 
     g_assert(group);
-    test_common_connected(&test);
+    test_common_connected(&test.common);
 
     /* Test ref/unref */
     g_assert(radio_request_group_ref(group) == group);
@@ -849,17 +890,28 @@ test_group(
     req = radio_request_new2(group, RADIO_REQ_GET_MUTE, NULL,
         test_complete_not_reached, test_inc_cb, &destroyed);
     g_assert(req);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_unref(req);
 
     req = radio_request_new2(group, RADIO_REQ_GET_MUTE, NULL,
         test_complete_not_reached, test_inc_cb, &destroyed);
     g_assert(req);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_unref(req);
 
-    /* And cancel them all in one shot */
+    /* Create a request without a group */
+    req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_simple_complete_ok_cb, test_simple_destroy_cb, &test);
+
+    /* It can't be submitted right away because client is owned by group */
+    GDEBUG("Submitting a standalone request");
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    radio_request_unref(req);
+
+    /* Cancel the whole group in one shot */
     g_assert(!destroyed);
+    GDEBUG("Cancelling group");
     radio_request_group_cancel(group);
     g_assert_cmpint(destroyed, == ,2);
 
@@ -872,10 +924,17 @@ test_group(
     radio_request_unref(req);
     g_assert_cmpint(destroyed, == ,3);
 
-    /* Cleanup */
+    /*
+     * Unblocking the group will allow the group-less request to get
+     * actually submitted, complete and quit the loop.
+     */
+    GDEBUG("Unblocking");
     radio_request_group_unblock(group);
+    test_run(&test_opt, test.loop);
+
+    /* Cleanup */
     radio_request_group_unref(group);
-    test_common_cleanup(&test);
+    test_simple_cleanup(&test);
 }
 
 /*==========================================================================*
@@ -904,7 +963,7 @@ test_group2(
     req = radio_request_new2(group, RADIO_REQ_GET_MUTE, NULL,
         test_complete_not_reached, test_inc_cb, &destroyed);
     g_assert(req);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
 
     /* The group immediately becomes an owner because the pending
@@ -1029,7 +1088,7 @@ test_group3(
     req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
         test_group3_complete_cb, test_group3_destroy_continue_cb, &test);
     g_assert(req);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
     radio_request_unref(req);
 
@@ -1065,19 +1124,19 @@ test_group3(
     req3 = radio_request_new2(group3, RADIO_REQ_GET_MUTE, NULL,
         test_group3_complete2_cb, test_group3_destroy_continue_cb, &test);
     g_assert(req3);
-    radio_request_submit(req3);
+    g_assert(radio_request_submit(req3));
     g_assert_cmpint(req3->state, == ,RADIO_REQUEST_STATE_QUEUED);
 
     req2 = radio_request_new2(group2, RADIO_REQ_GET_MUTE, NULL,
         test_group3_complete2_cb, test_group3_destroy_continue_cb, &test);
     g_assert(req2);
-    radio_request_submit(req2);
+    g_assert(radio_request_submit(req2));
     g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
 
     req1 = radio_request_new2(group1, RADIO_REQ_GET_MUTE, NULL,
         test_group3_complete2_cb, test_group3_destroy_continue_cb, &test);
     g_assert(req1);
-    radio_request_submit(req1);
+    g_assert(radio_request_submit(req1));
     g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_QUEUED);
 
     /* Wait for the first request to complete */
@@ -1197,7 +1256,7 @@ test_block(
     g_assert(req);
     g_assert(req->serial);
     radio_request_set_blocking(req, TRUE);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
     radio_request_unref(req);
 
@@ -1206,7 +1265,7 @@ test_block(
         test_block_complete_cb, test_block_destroy_cb, &test);
     g_assert(req);
     g_assert(req->serial);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
     radio_request_unref(req);
 
@@ -1214,7 +1273,7 @@ test_block(
         test_block_complete_cb, test_block_destroy_cb, &test);
     g_assert(req);
     g_assert(req->serial);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
     radio_request_unref(req);
 
@@ -1305,7 +1364,7 @@ test_block_timeout(
     g_assert(req->serial);
     radio_request_set_blocking(req, TRUE);
     radio_request_set_timeout(req, 100);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
     radio_request_unref(req);
 
@@ -1314,7 +1373,7 @@ test_block_timeout(
         test_block_timeout_complete2_cb, test_block_timeout_destroy_cb, &test);
     g_assert(req);
     g_assert(req->serial);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
     radio_request_unref(req);
 
@@ -1371,7 +1430,7 @@ test_retry(
 
     radio_request_set_retry_func(req, NULL); /* Use the default */
     radio_request_set_retry(req, 10, TEST_RETRY_COUNT);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_unref(req);
 
     test_run(&test_opt, test.loop);
@@ -1512,7 +1571,7 @@ test_err(
     /* Just setting retry function has no effect until non-zero number of
      * retries is set, too. */
     radio_request_set_retry_func(req, test_retry_not_reached);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_unref(req);
 
     test_common_connected(&test.common);
@@ -1592,7 +1651,7 @@ test_timeout(
     g_assert(req);
     g_assert(req->serial);
     radio_request_set_timeout(req, 2 * TEST_TIMEOUT_MS);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_set_timeout(req, 100); /* Resets the timeout */
     radio_request_set_timeout(req, 100); /* Has no effect */
     radio_request_unref(req);
@@ -1626,7 +1685,7 @@ test_timeout2(
     g_assert(req);
     g_assert(req->serial);
     radio_request_set_timeout(req, 2000 * TEST_TIMEOUT_SEC);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_set_timeout(req, 100); /* Resets the timeout */
     radio_request_set_timeout(req, 100); /* Has no effect */
     radio_request_unref(req);
@@ -1695,7 +1754,7 @@ test_timeout3(
     g_assert(req->serial);
     radio_request_set_retry(req, TEST_TIMEOUT_MS, 2);
     radio_request_set_timeout(req, 2 * TEST_TIMEOUT_MS);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_set_timeout(req, 100); /* Resets the timeout */
     radio_request_set_timeout(req, 100); /* Has no effect */
 
@@ -1737,14 +1796,14 @@ test_timeout4(
     g_assert(req1);
     g_assert(req1->serial);
     radio_request_set_timeout(req1, TEST_TIMEOUT_MS * 2);
-    radio_request_submit(req1);
+    g_assert(radio_request_submit(req1));
 
     /* And this one will time out quickly */
     req2 = radio_request_new(client, IGNORE_REQ, NULL,
         test_timeout_complete_cb, test_simple_destroy_cb, &test);
     g_assert(req2);
     g_assert(req2->serial);
-    radio_request_submit(req2);
+    g_assert(radio_request_submit(req2));
     radio_request_unref(req2);
     radio_client_set_default_timeout(client, 100);
     radio_client_set_default_timeout(client, 100); /* Has no effect */
@@ -1782,7 +1841,7 @@ test_destroy(
 
     g_assert(req);
     g_assert(req->serial);
-    radio_request_submit(req);
+    g_assert(radio_request_submit(req));
     radio_request_unref(req);
 
     /* Destroy the client without waiting for request to complete */

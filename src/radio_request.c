@@ -82,6 +82,7 @@ radio_request_free(
 {
     RadioRequest* req = &self->pub;
 
+    GVERBOSE_("%u (%08x) %p", req->code, req->serial, req);
     radio_request_object_cancel(self);
     if (req->complete) {
         RadioRequestCompleteFunc complete = req->complete;
@@ -154,6 +155,7 @@ radio_request_object_new(
     /* Assign serial and add to the group */
     radio_base_register_request(base, req);
     radio_request_group_add(group, req);
+    GVERBOSE_("%u (%08x) %p group %p", req->code, req->serial, req, group);
 
     /* Build the argument list */
     if (!writer) writer = &tmp;

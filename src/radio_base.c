@@ -83,12 +83,6 @@ static inline gboolean
 radio_base_can_retry(RadioRequest* req)
     { return req->max_retries < 0 || req->max_retries > req->retry_count; }
 
-static inline gboolean
-radio_base_request_blocked(RadioBasePriv* q, RadioRequest* req)
-    { return (q->owner != req->group &&
-             (q->owner || q->owner_queue)) ||
-             (q->block_req && q->block_req != req); }
-
 /*==========================================================================*
  * Implementation
  *==========================================================================*/
@@ -172,6 +166,7 @@ radio_base_deactivate_request(
     if (priv->block_req == req) {
         /* Let the life continue */
         priv->block_req = NULL;
+        GVERBOSE_("block %p => %p", req, priv->block_req);
         radio_request_unref(req);
     }
 }
@@ -302,32 +297,102 @@ radio_base_submit_transaction(
 static
 gboolean
 radio_base_can_set_owner(
-    RadioBase* self,
+    RadioBasePriv* priv,
     RadioRequestGroup* group)
 {
-    RadioBasePriv* priv = self->priv;
-    GHashTableIter it;
-    gpointer value;
+    /*
+     * Caller has verified that the group isn't already the owner.
+     * It's also been checked that either the owner queue is empty,
+     * of this group is the first one in the queue.
+     */
+    DEBUG_ASSERT(!priv->owner_queue || priv->owner_queue->data == group);
 
-    g_hash_table_iter_init(&it, priv->pending);
-    while (g_hash_table_iter_next(&it, NULL, &value)) {
-        RadioRequest* req = value;
+    if (g_hash_table_size(priv->pending)) {
+        GHashTableIter it;
+        gpointer value;
 
-        if (req->group != group) {
-            /*
-             * There's a pending request not associated with any group
-             * or associated with a different group. The specified group
-             * can't become the owner just yet.
-             */
-            return FALSE;
+        g_hash_table_iter_init(&it, priv->pending);
+        while (g_hash_table_iter_next(&it, NULL, &value)) {
+            RadioRequest* req = value;
+
+            DEBUG_ASSERT(req->state == RADIO_REQUEST_STATE_PENDING);
+            if (req->group != group) {
+                /*
+                 * There's a pending request not associated with any
+                 * group or associated with a different group. The
+                 * specified group can't become the owner just yet.
+                 */
+                return FALSE;
+            }
         }
+
     }
 
     /*
      * There are no pending requests, or all pending requests are
-     * associated with the specified group. This group can be the owner.
+     * associated with this group.
      */
     return TRUE;
+}
+
+static
+void
+radio_base_move_owner_queue(
+    RadioBase* self)
+{
+    RadioBasePriv* priv = self->priv;
+
+    if (!priv->owner && priv->owner_queue) {
+        GSList* l = priv->owner_queue;
+        RadioRequestGroup* group = l->data;
+
+        if (radio_base_can_set_owner(priv, group)) {
+            GVERBOSE_("owner %p", group);
+            priv->owner = group;
+            priv->owner_queue = l->next;
+            g_slist_free_1(l);
+            g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
+        }
+    }
+}
+
+static
+gboolean
+radio_base_can_submit_request(
+    RadioBasePriv* priv,
+    RadioRequest* req)
+{
+    if (priv->block_req) {
+        /* A request (presumably a different one) is blocking everything */
+        return FALSE;
+    } else if (req->group) {
+        /* The request is a part of a group */
+        if (req->group == priv->owner) {
+            /* The group is the current owner */
+            return TRUE;
+        } else if (priv->owner) {
+            /* Another group owns the whole thing */
+            return FALSE;
+        } else if (!priv->owner_queue) {
+            /* No group is waiting to become the owner */
+            return TRUE;
+        } else if (priv->owner_queue->data == req->group) {
+            /*
+             * This group is waiting to become the owner and it's the
+             * first one in the queue.
+             */
+            return radio_base_can_set_owner(priv, req->group);
+        } else {
+            /*
+             * Another group waiting to become the owner. This request
+             * will have to wait.
+             */
+            return FALSE;
+        }
+    } else {
+        /* Can submit if there's no owner and no one wants to become one */
+        return !priv->owner && !priv->owner_queue;
+    }
 }
 
 static
@@ -361,7 +426,7 @@ radio_base_submit_queued_requests(
         while (req) {
             RadioRequest* next = req->queue_next;
 
-            if (!radio_base_request_blocked(priv, req) &&
+            if (radio_base_can_submit_request(priv, req) &&
                 /* If the request is scheduled, don't submit it too early */
                 (!req->scheduled || now >= req->scheduled)) {
                 /* Remove it from the queue (prev remains untouched) */
@@ -369,8 +434,10 @@ radio_base_submit_queued_requests(
 
                 /* Initiate the transaction and update the request state */
                 if (radio_base_submit_transaction(self, req)) {
+                    radio_base_move_owner_queue(self);
                     submitted++;
                     if (req->blocking) {
+                        GVERBOSE_("block %p => %p", priv->block_req, req);
                         priv->block_req = radio_request_ref(req);
                         break;
                     }
@@ -484,6 +551,7 @@ radio_base_unregister_request(
     if (G_LIKELY(self)) {
         RadioBasePriv* priv = self->priv;
 
+        GVERBOSE_("request %u %p (%08x) done", req->code, req, req->serial);
         g_hash_table_remove(priv->requests, KEY(req->serial));
         g_hash_table_remove(priv->requests, KEY(req->serial2));
         req->serial = req->serial2 = 0;
@@ -544,8 +612,12 @@ radio_base_retry_request(
         if (radio_base_submit_queued_requests(self)) {
             radio_base_reset_timeout(self);
         }
-        return (req->state == RADIO_REQUEST_STATE_PENDING);
+        if (req->state == RADIO_REQUEST_STATE_PENDING) {
+            return TRUE;
+        }
     }
+    GVERBOSE_("can't retry request %u (%08x/%08x) %p", req->code,
+        req->serial, req->serial2, req);
     return FALSE;
 }
 
@@ -580,15 +652,25 @@ radio_base_reset_timeout(
         gpointer value;
 
         /* Calculate the new deadline */
+        GVERBOSE_("time %" G_GINT64_FORMAT " block %p owner %p queue %p",
+            now, priv->block_req, priv->owner, priv->owner_queue ?
+            priv->owner_queue->data : NULL);
+
         g_hash_table_iter_init(&it, priv->active);
         while (g_hash_table_iter_next(&it, NULL, &value)) {
             RadioRequest* req = value;
 
+            GVERBOSE_("%p %" G_GINT64_FORMAT " %" G_GINT64_FORMAT, req,
+                req->deadline, req->scheduled);
             if (!next_wakeup || next_wakeup > req->deadline) {
+                GVERBOSE_("  %" G_GINT64_FORMAT " => %" G_GINT64_FORMAT,
+                    next_wakeup, req->deadline);
                 next_wakeup = req->deadline;
             }
-            if (req->scheduled && !radio_base_request_blocked(priv, req)) {
+            if (req->scheduled && radio_base_can_submit_request(priv, req)) {
                 if (!next_wakeup || next_wakeup > req->scheduled) {
+                    GVERBOSE_("  %" G_GINT64_FORMAT " => %" G_GINT64_FORMAT,
+                        next_wakeup, req->scheduled);
                     next_wakeup = req->scheduled;
                 }
             }
@@ -647,7 +729,8 @@ radio_base_block(
         /* This group is already the owner */
         return  RADIO_BLOCK_ACQUIRED;
     } else if (!priv->owner && !priv->owner_queue &&
-        radio_base_can_set_owner(self, group)) {
+        radio_base_can_set_owner(priv, group)) {
+        GVERBOSE_("owner %p", group);
         priv->owner = group;
         g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
         return RADIO_BLOCK_ACQUIRED;
@@ -665,25 +748,24 @@ radio_base_unblock(
     RadioBase* self,
     RadioRequestGroup* group)
 {
-    /* Group is never NULL but base pointer isn't checked by the caller */
-    if (G_LIKELY(self)) {
-        RadioBasePriv* priv = self->priv;
+    /* Parameters are checked by the caller */
+    RadioBasePriv* priv = self->priv;
 
-        if (priv->owner == group) {
-            if (priv->owner_queue) {
-                priv->owner = priv->owner_queue->data;
-                priv->owner_queue = g_slist_delete_link(priv->owner_queue,
-                    priv->owner_queue);
-            } else {
-                priv->owner = NULL;
-            }
-            g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
-            if (radio_base_submit_queued_requests(self)) {
-                radio_base_reset_timeout(self);
-            }
+    if (priv->owner == group) {
+        if (priv->owner_queue) {
+            priv->owner = priv->owner_queue->data;
+            priv->owner_queue = g_slist_delete_link(priv->owner_queue,
+                priv->owner_queue);
         } else {
-            priv->owner_queue = g_slist_remove(priv->owner_queue, group);
+            GVERBOSE_("owner %p", NULL);
+            priv->owner = NULL;
         }
+        g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
+        if (radio_base_submit_queued_requests(self) || !priv->owner) {
+            radio_base_reset_timeout(self);
+        }
+    } else {
+        priv->owner_queue = g_slist_remove(priv->owner_queue, group);
     }
 }
 
@@ -703,6 +785,9 @@ radio_base_handle_resp(
         /* Temporary ref */
         g_object_ref(self);
 
+        /* It's no longer pending */
+        g_hash_table_remove(priv->pending, KEY(info->serial));
+
         /* Response may come before completion of the request */
         radio_base_cancel_request(self, req);
 
@@ -717,18 +802,7 @@ radio_base_handle_resp(
         } else if (g_hash_table_steal(priv->active, KEY(info->serial))) {
             req->state = RADIO_REQUEST_STATE_DONE;
             radio_base_deactivate_request(self, req);
-            if (!priv->owner && priv->owner_queue) {
-                /* There's a request group waiting to become the owner */
-                GSList* l = priv->owner_queue;
-                RadioRequestGroup* group = l->data;
-
-                if (radio_base_can_set_owner(self, group)) {
-                    priv->owner = group;
-                    priv->owner_queue = l->next;
-                    g_slist_free_1(l);
-                    g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
-                }
-            }
+            radio_base_move_owner_queue(self);
             if (req->complete) {
                 RadioRequestCompleteFunc fn = req->complete;
 
