@@ -125,7 +125,17 @@ radio_request_default_retry(
     const GBinderReader* reader,
     void* user_data)
 {
-    return status != RADIO_TX_STATUS_OK || error != RADIO_ERROR_NONE;
+    if (status != RADIO_TX_STATUS_OK) {
+        GVERBOSE_("req %p %u (%08x) status %d", req, req->code, req->serial,
+            status);
+        return TRUE;
+    } else if (error != RADIO_ERROR_NONE) {
+        GVERBOSE_("req %p %u (%08x) error %d", req, req->code, req->serial,
+            error);
+        return TRUE;
+    } else {
+        return FALSE;
+    }
 }
 
 static
