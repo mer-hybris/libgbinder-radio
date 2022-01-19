@@ -515,6 +515,7 @@ test_basic(
     TestCommon test;
     RadioRequest* req;
     RadioClient* client = test_common_init(&test);
+    GBinderWriter args;
     gboolean destroyed = FALSE;
 
     g_assert_cmpstr(radio_client_slot(client), == ,test.radio->slot);
@@ -545,7 +546,7 @@ test_basic(
     radio_request_drop(req);  /* Releases the final ref */
 
     /* Make sure destroy callback is invoked */
-    req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL, NULL,
+    req = radio_request_new(client, RADIO_REQ_GET_MUTE, &args, NULL,
         test_destroy_once, &destroyed);
     radio_request_unref(req);
     g_assert(destroyed);
@@ -791,6 +792,7 @@ test_resp(
     g_assert(req2->serial);
     g_assert(radio_request_submit(req1));
     g_assert(!radio_request_submit(req1)); /* Second time it fails */
+    radio_request_set_retry(req2, 0, -1); /* Won't actually be retried */
     g_assert(radio_request_submit(req2));
     test_common_connected(&test.common);
 
@@ -1371,6 +1373,105 @@ test_block_timeout(
     /* And non-blocking */
     req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
         test_block_timeout_complete2_cb, test_block_timeout_destroy_cb, &test);
+    g_assert(req);
+    g_assert(req->serial);
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    radio_request_unref(req);
+
+    /* And wait for both request to get destroyed */
+    test_run(&test_opt, test.loop);
+
+    g_assert_cmpint(test.completed, == ,2);
+    g_assert_cmpint(test.destroyed, == ,2);
+
+    /* Cleanup */
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_retry
+ *==========================================================================*/
+
+static
+void
+test_block_retry_complete1_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert_cmpint(resp, == ,ERROR_RESP);
+    g_assert_cmpint(error, == ,RADIO_ERROR_GENERIC_FAILURE);
+    g_assert_cmpint(req->retry_count, == ,req->max_retries);
+    g_assert(req->blocking);
+    g_assert(!test->completed);
+    test->completed++;
+    GDEBUG("block timed out");
+}
+
+static
+void
+test_block_retry_complete2_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert_cmpint(resp, == ,RADIO_RESP_GET_MUTE);
+    g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
+    g_assert_cmpint(test->completed, == ,1);
+    test->completed++;
+    GDEBUG("second request completed");
+    test_quit_later(test->loop);
+}
+
+static
+void
+test_block_retry_destroy_cb(
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    test->destroyed++;
+    GDEBUG("destruction %u", test->destroyed);
+    g_assert_cmpint(test->completed, >= ,test->destroyed);
+}
+
+static
+void
+test_block_retry(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequest* req = radio_request_new(client, ERROR_REQ, NULL,
+        test_block_retry_complete1_cb, test_block_retry_destroy_cb, &test);
+
+    test_common_connected(&test.common);
+
+    /* Make it blocking and retriable */
+    g_assert(req);
+    g_assert(req->serial);
+    radio_request_set_blocking(req, TRUE);
+    radio_request_set_retry(req, 10, 5);
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_unref(req);
+
+    /* And non-blocking */
+    req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_retry_complete2_cb, test_block_retry_destroy_cb, &test);
     g_assert(req);
     g_assert(req->serial);
     g_assert(radio_request_submit(req));
@@ -1977,6 +2078,7 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("group3"), test_group3);
     g_test_add_func(TEST_("block"), test_block);
     g_test_add_func(TEST_("block_timeout"), test_block_timeout);
+    g_test_add_func(TEST_("block_retry"), test_block_retry);
     g_test_add_func(TEST_("retry"), test_retry);
     g_test_add_func(TEST_("retry2"), test_retry2);
     g_test_add_func(TEST_("fail"), test_fail);

@@ -363,8 +363,8 @@ radio_base_can_submit_request(
     RadioRequest* req)
 {
     if (priv->block_req) {
-        /* A request (presumably a different one) is blocking everything */
-        return FALSE;
+        /* The current blocker can be resubmitted */
+        return priv->block_req == req;
     } else if (req->group) {
         /* The request is a part of a group */
         if (req->group == priv->owner) {
@@ -437,8 +437,10 @@ radio_base_submit_queued_requests(
                     radio_base_move_owner_queue(self);
                     submitted++;
                     if (req->blocking) {
-                        GVERBOSE_("block %p => %p", priv->block_req, req);
-                        priv->block_req = radio_request_ref(req);
+                        if (!priv->block_req) {
+                            GVERBOSE_("block %p => %p", priv->block_req, req);
+                            priv->block_req = radio_request_ref(req);
+                        }
                         break;
                     }
                 } else {
