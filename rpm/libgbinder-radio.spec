@@ -1,6 +1,6 @@
 Name: libgbinder-radio
 
-Version: 1.4.7
+Version: 1.4.8
 Release: 0
 Summary: Binder client library for Android radio interfaces
 License: BSD

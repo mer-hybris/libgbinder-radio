@@ -1,3 +1,9 @@
+libgbinder-radio (1.4.8) unstable; urgency=medium
+
+  * Fixed retries of blocking requests
+
+ -- Slava Monich <slava.monich@jolla.com>  Wed, 19 Jan 2022 03:32:30 +0200
+
 libgbinder-radio (1.4.7) unstable; urgency=medium
 
   * Fixed owner queue logic
