@@ -477,6 +477,12 @@ typedef enum radio_data_profile_type {
 } RADIO_DATA_PROFILE_TYPE; /* Since 1.2.5 */
 G_STATIC_ASSERT(sizeof(RADIO_DATA_PROFILE_TYPE) == 4);
 
+typedef enum radio_tech_family {
+    RADIO_TECH_FAMILY_3GPP,
+    RADIO_TECH_FAMILY_3GPP2
+} RADIO_TECH_FAMILY; /* Since 1.4.9 */
+G_STATIC_ASSERT(sizeof(RADIO_TECH_FAMILY) == 4);
+
 typedef enum radio_pdp_protocol_type {
     RADIO_PDP_PROTOCOL_UNKNOWN = -1,
     RADIO_PDP_PROTOCOL_IP,
@@ -1247,6 +1253,15 @@ typedef struct radio_send_sms_result {
     gint32 errorCode RADIO_ALIGNED(4);
 } RADIO_ALIGNED(8) RadioSendSmsResult;
 G_STATIC_ASSERT(sizeof(RadioSendSmsResult) == 32);
+
+typedef struct radio_ims_sms_message {
+    RADIO_TECH_FAMILY tech RADIO_ALIGNED(4);
+    gboolean retry RADIO_ALIGNED(1);
+    gint32 messageRef RADIO_ALIGNED(4);
+    GBinderHidlVec cdmaMessage RADIO_ALIGNED(8); /* vec<CdmaSmsMessage> */
+    GBinderHidlVec gsmMessage RADIO_ALIGNED(8);  /* vec<RadioGsmSmsMessage> */
+} RADIO_ALIGNED(8) RadioImsSmsMessage; /* Since 1.4.9 */
+G_STATIC_ASSERT(sizeof(RadioImsSmsMessage) == 48);
 
 typedef struct radio_icc_io {
     gint32 command RADIO_ALIGNED(4);
