@@ -1,3 +1,9 @@
+libgbinder-radio (1.4.10) unstable; urgency=medium
+
+  * Tweaked completion callback criteria
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 15 Apr 2022 21:58:17 +0300
+
 libgbinder-radio (1.4.9) unstable; urgency=medium
 
   * Added IMS types
