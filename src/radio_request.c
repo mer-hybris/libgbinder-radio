@@ -44,11 +44,17 @@
 
 #include <gutil_macros.h>
 
+typedef enum radio_request_flags {
+    RADIO_REQUEST_NO_FLAGS = 0,
+    RADIO_REQUEST_FLAG_DROPPED = 0x01,
+    RADIO_REQUEST_FLAG_SUBMITTED = 0x02
+} RADIO_REQUEST_FLAGS;
+
 typedef struct radio_request_object {
     RadioRequest pub;
     GDestroyNotify destroy;
     gsize serial_offset;
-    gboolean dropped;
+    RADIO_REQUEST_FLAGS flags;
     gint refcount;
 } RadioRequestObject;
 
@@ -67,8 +73,8 @@ radio_request_object_cancel(
     RadioRequest* req = &self->pub;
 
     radio_base_cancel_request(req->object, req);
-    if (!self->dropped) {
-        self->dropped = TRUE;
+    if (!(self->flags & RADIO_REQUEST_FLAG_DROPPED)) {
+        self->flags |= RADIO_REQUEST_FLAG_DROPPED;
         radio_request_group_remove(req->group, req);
         radio_base_request_dropped(req);
     }
@@ -84,7 +90,9 @@ radio_request_free(
 
     GVERBOSE_("%u (%08x) %p", req->code, req->serial, req);
     radio_request_object_cancel(self);
-    if (req->complete) {
+
+    /* Don't invoke completion routine if the request was never submitted */
+    if (req->complete && (self->flags & RADIO_REQUEST_FLAG_SUBMITTED)) {
         RadioRequestCompleteFunc complete = req->complete;
 
         /* Request is being freed too early, before completion */
@@ -319,7 +327,11 @@ gboolean
 radio_request_submit(
     RadioRequest* req)
 {
-    return req && req->object && radio_base_submit_request(req->object, req);
+    if (req && req->object && radio_base_submit_request(req->object, req)) {
+        radio_request_cast(req)->flags |= RADIO_REQUEST_FLAG_SUBMITTED;
+        return TRUE;
+    }
+    return FALSE;
 }
 
 gboolean
