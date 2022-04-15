@@ -545,9 +545,9 @@ test_basic(
     radio_request_drop(req);  /* Matches radio_request_ref() above */
     radio_request_drop(req);  /* Releases the final ref */
 
-    /* Make sure destroy callback is invoked */
-    req = radio_request_new(client, RADIO_REQ_GET_MUTE, &args, NULL,
-        test_destroy_once, &destroyed);
+    /* Make sure destroy (but not completion) callback is invoked */
+    req = radio_request_new(client, RADIO_REQ_GET_MUTE, &args,
+        test_complete_not_reached, test_destroy_once, &destroyed);
     radio_request_unref(req);
     g_assert(destroyed);
 
