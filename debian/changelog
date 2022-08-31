@@ -1,3 +1,9 @@
+libgbinder-radio (1.4.11) unstable; urgency=medium
+
+  * Added radio_request_user_data()
+
+ -- Slava Monich <slava.monich@jolla.com>  Wed, 31 Aug 2022 19:10:49 +0300
+
 libgbinder-radio (1.4.10) unstable; urgency=medium
 
   * Tweaked completion callback criteria
