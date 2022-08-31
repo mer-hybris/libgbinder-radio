@@ -366,6 +366,13 @@ radio_request_drop(
     }
 }
 
+void*
+radio_request_user_data(
+    RadioRequest* req) /* Since 1.4.11 */
+{
+    return G_LIKELY(req) ? req->user_data : NULL;
+}
+
 /*
  * Local Variables:
  * mode: C
