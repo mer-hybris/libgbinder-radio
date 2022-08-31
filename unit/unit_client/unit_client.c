@@ -491,6 +491,7 @@ test_null(
     g_assert(!radio_request_ref(NULL));
     g_assert(!radio_request_submit(NULL));
     g_assert(!radio_request_retry(NULL));
+    g_assert(!radio_request_user_data(NULL));
 
     radio_request_group_cancel(NULL);
     radio_request_group_unref(NULL);
@@ -548,6 +549,7 @@ test_basic(
     /* Make sure destroy (but not completion) callback is invoked */
     req = radio_request_new(client, RADIO_REQ_GET_MUTE, &args,
         test_complete_not_reached, test_destroy_once, &destroyed);
+    g_assert(radio_request_user_data(req) == &destroyed);
     radio_request_unref(req);
     g_assert(destroyed);
 

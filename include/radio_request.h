@@ -207,6 +207,10 @@ radio_request_set_retry_func(
     RadioRequest* req,
     RadioRequestRetryFunc retry);
 
+void*
+radio_request_user_data(
+    RadioRequest* req); /* Since 1.4.11 */
+
 G_END_DECLS
 
 #endif /* RADIO_REQUEST_H */
