@@ -334,7 +334,8 @@ typedef enum radio_tech {
     RADIO_TECH_GSM,
     RADIO_TECH_TD_SCDMA,
     RADIO_TECH_IWLAN,
-    RADIO_TECH_LTE_CA
+    RADIO_TECH_LTE_CA,
+    RADIO_TECH_NR /* Since 1.5.4 */
 } RADIO_TECH;
 G_STATIC_ASSERT(sizeof(RADIO_TECH) == 4);
 
@@ -359,7 +360,8 @@ typedef enum radio_access_family {
     RAF_GSM = (1 << RADIO_TECH_GSM),
     RAF_TD_SCDMA = (1 << RADIO_TECH_TD_SCDMA),
     RAF_IWLAN = (1 << RADIO_TECH_IWLAN),
-    RAF_LTE_CA = (1 << RADIO_TECH_LTE_CA)
+    RAF_LTE_CA = (1 << RADIO_TECH_LTE_CA),
+    RAF_NR = (1 << RADIO_TECH_NR) /* Since 1.5.4 */
 } RADIO_ACCESS_FAMILY;
 G_STATIC_ASSERT(sizeof(RADIO_ACCESS_FAMILY) == 4);
 
