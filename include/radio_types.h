@@ -1503,10 +1503,17 @@ typedef struct radio_data_reg_state_result_1_2 {
 G_STATIC_ASSERT(sizeof(RadioDataRegStateResult_1_2) == 104);
 
 typedef struct radio_data_reg_lte_vops_info {
-    guint32 isVopsSupported RADIO_ALIGNED(4);
-    guint32 isEmcBearerSupported RADIO_ALIGNED(4);
-} RADIO_ALIGNED(4) RadioDataRegLteVopsInfo;  /* Since 1.4.0 */
-G_STATIC_ASSERT(sizeof(RadioDataRegLteVopsInfo) == 8);
+    guint8 isVopsSupported RADIO_ALIGNED(1);
+    guint8 isEmcBearerSupported RADIO_ALIGNED(1);
+} RADIO_ALIGNED(1) RadioDataRegLteVopsInfo;  /* Since 1.4.0 */
+G_STATIC_ASSERT(sizeof(RadioDataRegLteVopsInfo) == 2);
+
+typedef struct radio_data_reg_nr_inicators {
+    guint8 isEndcAvailable RADIO_ALIGNED(1);
+    guint8 isDcNrRestricted RADIO_ALIGNED(1);
+    guint8 isNrAvailable RADIO_ALIGNED(1);
+} RADIO_ALIGNED(1) RadioDataRegNrIndicators;  /* Since 1.4.2 */
+G_STATIC_ASSERT(sizeof(RadioDataRegNrIndicators) == 3);
 
 typedef struct radio_data_reg_state_result_1_4 {
     RADIO_REG_STATE regState RADIO_ALIGNED(4);
@@ -1514,7 +1521,9 @@ typedef struct radio_data_reg_state_result_1_4 {
     gint32 reasonDataDenied RADIO_ALIGNED(4);
     gint32 maxDataCalls RADIO_ALIGNED(4);
     RadioCellIdentity_1_2 cellIdentity RADIO_ALIGNED(8);
-    RadioDataRegLteVopsInfo lteVopsInfo RADIO_ALIGNED(4);
+    guint8 lteVopsInfoValid RADIO_ALIGNED(1);
+    RadioDataRegLteVopsInfo lteVopsInfo RADIO_ALIGNED(1);
+    RadioDataRegNrIndicators nrIndicators RADIO_ALIGNED(1);
 } RADIO_ALIGNED(8) RadioDataRegStateResult_1_4;  /* Since 1.4.0 */
 G_STATIC_ASSERT(sizeof(RadioDataRegStateResult_1_4) == 112);
 
