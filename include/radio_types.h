@@ -314,6 +314,23 @@ typedef enum radio_network_scan_specifier_1_5_type {
     RADIO_NETWORK_SCAN_SPECIFIER_1_5_NGRAN
 } RADIO_NETWORK_SCAN_SPECIFIER_1_5_TYPE; /* Since 1.5.2 */
 
+typedef enum radio_frequency_info_type {
+    RADIO_FREQUENCY_INFO_TYPE_RANGE,
+    RADIO_FREQUENCY_INFO_TYPE_CHANNEL_NUMBER,
+} RADIO_FREQUENCY_INFO_TYPE; /* Since 1.5.4 */;
+
+typedef enum radio_frequency_range {
+    /* Indicates the frequency range is below 1GHz. */
+    RADIO_FREQUENCY_RANGE_LOW = 1,
+    /* Indicates the frequency range is between 1GHz and 3GHz. */
+    RADIO_FREQUENCY_RANGE_MID,
+    /* Indicates the frequency range is between 3GHz and 6GHz. */
+    RADIO_FREQUENCY_RANGE_HIGH,
+    /* Indicates the frequency range is above 6GHz (millimeter wave frequency). */
+    RADIO_FREQUENCY_RANGE_MMWAVE,
+} RADIO_FREQUENCY_RANGE; /* Since 1.5.4 */;
+G_STATIC_ASSERT(sizeof(RADIO_FREQUENCY_RANGE) == 4);
+
 typedef enum radio_tech {
     RADIO_TECH_UNKNOWN = 0,
     RADIO_TECH_GPRS,
@@ -2128,6 +2145,30 @@ typedef struct radio_cell_info_1_5 {
     } info RADIO_ALIGNED(8);
 } RADIO_ALIGNED(8) RadioCellInfo_1_5; /* Since 1.5.0 */
 G_STATIC_ASSERT(sizeof(RadioCellInfo_1_5) == 216);
+
+typedef struct radio_physical_channel_config {
+    RADIO_CELL_CONNECTION_STATUS connectionStatus RADIO_ALIGNED(4);
+    gint32 cellBandwidthDownlink RADIO_ALIGNED(4);
+} RADIO_ALIGNED(4) RadioPhysicalChannelConfig; /* Since 1.5.4 */
+G_STATIC_ASSERT(sizeof(RadioPhysicalChannelConfig) == 8);
+
+typedef struct radio_frequency_info {
+    guint8 frequencyInfoType RADIO_ALIGNED(1); /* RADIO_FREQUENCY_INFO_TYPE */
+    union {
+        RADIO_FREQUENCY_RANGE range RADIO_ALIGNED(4);
+        gint32 channelNumber RADIO_ALIGNED(4);
+    } info RADIO_ALIGNED(4);
+} RADIO_ALIGNED(4) RadioFrequencyInfo; /* Since 1.5.4 */
+G_STATIC_ASSERT(sizeof(RadioFrequencyInfo) == 8);
+
+typedef struct radio_physical_channel_config_1_4 {
+    RadioPhysicalChannelConfig base RADIO_ALIGNED(4);
+    RADIO_TECH rat RADIO_ALIGNED(4);
+    RadioFrequencyInfo rfInfo RADIO_ALIGNED(4);
+    GBinderHidlVec contextIds RADIO_ALIGNED(8);
+    guint32 physicalCellId RADIO_ALIGNED(4);
+} RADIO_ALIGNED(8) RadioPhysicalChannelConfig_1_4; /* Since 1.5.4 */
+G_STATIC_ASSERT(sizeof(RadioPhysicalChannelConfig_1_4) == 48);
 
 typedef struct radio_gsm_broadcast_sms_config {
     gint32 fromServiceId RADIO_ALIGNED(4);
