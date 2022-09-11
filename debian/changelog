@@ -1,3 +1,9 @@
+libgbinder-radio (1.4.12) unstable; urgency=medium
+
+  * Fixed RadioDataRegStateResult_1_4
+
+ -- Slava Monich <slava.monich@jolla.com>  Sun, 11 Sep 2022 21:37:23 +0300
+
 libgbinder-radio (1.4.11) unstable; urgency=medium
 
   * Added radio_request_user_data()
