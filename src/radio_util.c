@@ -273,14 +273,9 @@ radio_req_resp2(
             return RADIO_RESP_GET_CELL_INFO_LIST_1_2;
         case RADIO_INTERFACE_1_4:
             return RADIO_RESP_GET_CELL_INFO_LIST_1_4;
-        case RADIO_INTERFACE_1_5:
-            return RADIO_RESP_GET_CELL_INFO_LIST_1_5;
-        /*
         default:
             return RADIO_RESP_GET_CELL_INFO_LIST_1_5;
-        */
         case RADIO_INTERFACE_NONE:
-        case RADIO_INTERFACE_COUNT:
             break;
         }
         return RADIO_RESP_NONE;
@@ -296,7 +291,7 @@ radio_req_resp2(
         case RADIO_INTERFACE_1_0:
         case RADIO_INTERFACE_1_1:
             return RADIO_RESP_GET_CURRENT_CALLS;
-        default:
+        default: /* The last one */
             return RADIO_RESP_GET_CURRENT_CALLS_1_2;
         case RADIO_INTERFACE_NONE:
             break;
@@ -314,7 +309,7 @@ radio_req_resp2(
         case RADIO_INTERFACE_1_0:
         case RADIO_INTERFACE_1_1:
             return RADIO_RESP_GET_SIGNAL_STRENGTH;
-        default:
+        default: /* The last one */
             return RADIO_RESP_GET_SIGNAL_STRENGTH_1_2;
         case RADIO_INTERFACE_NONE:
             break;
@@ -332,7 +327,7 @@ radio_req_resp2(
         case RADIO_INTERFACE_1_0:
         case RADIO_INTERFACE_1_1:
             return RADIO_RESP_GET_VOICE_REGISTRATION_STATE;
-        default:
+        default: /* The last one */
             return RADIO_RESP_GET_VOICE_REGISTRATION_STATE_1_2;
         case RADIO_INTERFACE_NONE:
             break;
@@ -354,7 +349,7 @@ radio_req_resp2(
         case RADIO_INTERFACE_1_2:
         case RADIO_INTERFACE_1_3:
             return RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_2;
-        default:
+        default: /* The last one */
             return RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_4;
         case RADIO_INTERFACE_NONE:
             break;
@@ -377,14 +372,9 @@ radio_req_resp2(
             return RADIO_RESP_GET_DATA_CALL_LIST;
         case RADIO_INTERFACE_1_4:
             return RADIO_RESP_GET_DATA_CALL_LIST_1_4;
-        case RADIO_INTERFACE_1_5:
+        default: /* The last one */
             return RADIO_RESP_GET_DATA_CALL_LIST_1_5;
-        /*
-        default:
-            return RADIO_RESP_GET_DATA_CALL_LIST_1_5;
-        */
         case RADIO_INTERFACE_NONE:
-        case RADIO_INTERFACE_COUNT:
             break;
         }
         return RADIO_RESP_NONE;

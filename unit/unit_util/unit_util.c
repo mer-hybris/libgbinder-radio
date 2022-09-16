@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Jolla Ltd.
- * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
+ * Copyright (C) 2022 Jolla Ltd.
+ * Copyright (C) 2022 Slava Monich <slava.monich@jolla.com>
  *
  * You may use this file under the terms of the BSD license as follows:
  *
@@ -66,6 +66,8 @@ test_req_name(
         "setSystemSelectionChannels");
     g_assert_cmpstr(radio_req_name(RADIO_REQ_EMERGENCY_DIAL),==,
         "emergencyDial");
+    g_assert_cmpstr(radio_req_name(RADIO_REQ_ENABLE_UICC_APPLICATIONS),==,
+        "enableUiccApplications");
 }
 
 /*==========================================================================*
@@ -89,6 +91,8 @@ test_resp_name(
         "setSystemSelectionChannelsResponse");
     g_assert_cmpstr(radio_resp_name(RADIO_RESP_EMERGENCY_DIAL),==,
         "emergencyDialResponse");
+    g_assert_cmpstr(radio_resp_name(RADIO_RESP_ENABLE_UICC_APPLICATIONS),==,
+        "enableUiccApplicationsResponse");
 }
 
 /*==========================================================================*
@@ -110,6 +114,8 @@ test_ind_name(
         "currentLinkCapacityEstimate");
     g_assert_cmpstr(radio_ind_name(RADIO_IND_CURRENT_EMERGENCY_NUMBER_LIST),==,
         "currentEmergencyNumberList");
+    g_assert_cmpstr(radio_ind_name(RADIO_IND_REGISTRATION_FAILED),==,
+        "registrationFailed");
 }
 
 /*==========================================================================*
@@ -220,10 +226,8 @@ test_req_resp2(
           RADIO_RESP_GET_ICC_CARD_STATUS_1_4 },
         { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_1_5,
           RADIO_RESP_GET_ICC_CARD_STATUS_1_5 },
-        /*
         { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_COUNT,
-          RADIO_RESP_GET_ICC_CARD_STATUS_1_5 },
-        */
+          RADIO_RESP_NONE },
         { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_NONE,
           RADIO_RESP_NONE },
 
@@ -239,10 +243,8 @@ test_req_resp2(
           RADIO_RESP_GET_CELL_INFO_LIST_1_4 },
         { RADIO_REQ_GET_CELL_INFO_LIST, RADIO_INTERFACE_1_5,
           RADIO_RESP_GET_CELL_INFO_LIST_1_5 },
-        /*
         { RADIO_REQ_GET_CELL_INFO_LIST, RADIO_INTERFACE_COUNT,
           RADIO_RESP_GET_CELL_INFO_LIST_1_5 },
-        */
         { RADIO_REQ_GET_CELL_INFO_LIST, RADIO_INTERFACE_NONE,
           RADIO_RESP_NONE },
 
@@ -318,10 +320,8 @@ test_req_resp2(
           RADIO_RESP_GET_DATA_CALL_LIST_1_4 },
         { RADIO_REQ_GET_DATA_CALL_LIST, RADIO_INTERFACE_1_5,
           RADIO_RESP_GET_DATA_CALL_LIST_1_5 },
-        /*
         { RADIO_REQ_GET_DATA_CALL_LIST, RADIO_INTERFACE_COUNT,
           RADIO_RESP_GET_DATA_CALL_LIST_1_5 },
-        */
         { RADIO_REQ_GET_DATA_CALL_LIST, RADIO_INTERFACE_NONE,
           RADIO_RESP_NONE }
     };
