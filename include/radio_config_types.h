@@ -47,7 +47,7 @@ typedef enum radio_config_interface {
     RADIO_CONFIG_INTERFACE_NONE = -1,
     RADIO_CONFIG_INTERFACE_1_0,
     RADIO_CONFIG_INTERFACE_1_1,
-    RADIO_CONFIG_INTERFACE_1_2, /* Since 1.4.13 */
+    RADIO_CONFIG_INTERFACE_1_2, /* Since 1.5.0 */
     RADIO_CONFIG_INTERFACE_COUNT
 } RADIO_CONFIG_INTERFACE;
 
@@ -138,7 +138,7 @@ G_STATIC_ASSERT(sizeof(RadioModemsConfig) == 1);
     i(1,simSlotsStatusChanged,SIM_SLOTS_STATUS_CHANGED)
 
 #define RADIO_CONFIG_IND_1_2(i) \
-    i(2,simSlotsStatusChanged_1_2,SIM_SLOTS_STATUS_CHANGED_1_2) /* Since 1.4.13 */
+    i(2,simSlotsStatusChanged_1_2,SIM_SLOTS_STATUS_CHANGED_1_2) /* Since 1.5.0 */
 
 typedef enum radio_config_req {
     RADIO_CONFIG_REQ_ANY = 0,
@@ -172,7 +172,7 @@ typedef enum radio_config_resp {
     RADIO_CONFIG_1_1_RESP_LAST = RADIO_CONFIG_RESP_GET_MODEMS_CONFIG,
 
     /* android.hardware.radio.config@1.2::IRadioConfigResponse */
-    RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2 = 7, /* Since 1.4.13 */
+    RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2 = 7, /* Since 1.5.0 */
     RADIO_CONFIG_1_2_RESP_LAST = RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2
 #undef RADIO_CONFIG_RESP_
 } RADIO_CONFIG_RESP;
@@ -188,7 +188,7 @@ typedef enum radio_config_ind {
     RADIO_CONFIG_1_0_IND_LAST = RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED,
 
     /* android.hardware.radio.config@1.2::IRadioConfigIndication */
-    RADIO_CONFIG_IND_1_2(RADIO_CONFIG_IND_) /* Since 1.4.13 */
+    RADIO_CONFIG_IND_1_2(RADIO_CONFIG_IND_) /* Since 1.5.0 */
     RADIO_CONFIG_1_2_IND_LAST = RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED_1_2
 #undef RADIO_CONFIG_IND_
 } RADIO_CONFIG_IND;

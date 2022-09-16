@@ -1,3 +1,10 @@
+libgbinder-radio (1.5.0) unstable; urgency=medium
+
+  * Added support for IRadio@1.5
+  * Added support for IRadioConfig@1.2
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 16 Sep 2022 14:13:04 +0300
+
 libgbinder-radio (1.4.12) unstable; urgency=medium
 
   * Fixed RadioDataRegStateResult_1_4
