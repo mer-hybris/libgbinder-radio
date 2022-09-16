@@ -52,11 +52,13 @@ static const GBinderClientIfaceInfo radio_config_ind_iface_info[] = {
 };
 
 static const GBinderClientIfaceInfo radio_config_resp_iface_info[] = {
+    {RADIO_CONFIG_RESPONSE_1_2, RADIO_CONFIG_1_2_RESP_LAST },
     {RADIO_CONFIG_RESPONSE_1_1, RADIO_CONFIG_1_1_RESP_LAST },
     {RADIO_CONFIG_RESPONSE_1_0, RADIO_CONFIG_1_0_RESP_LAST }
 };
 
 static const char* const radio_config_req_ifaces[] = {
+    RADIO_CONFIG_1_2,
     RADIO_CONFIG_1_1,
     RADIO_CONFIG_1_0,
     NULL
@@ -64,7 +66,8 @@ static const char* const radio_config_req_ifaces[] = {
 
 static const char* const radio_config_fqnames[] = {
     RADIO_CONFIG_1_0_FQNAME,
-    RADIO_CONFIG_1_1_FQNAME
+    RADIO_CONFIG_1_1_FQNAME,
+    RADIO_CONFIG_1_2_FQNAME
 };
 
 static

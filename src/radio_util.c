@@ -66,6 +66,7 @@ radio_req_name(
     RADIO_CALL_1_2(RADIO_REQ_)
     RADIO_CALL_1_3(RADIO_REQ_)
     RADIO_CALL_1_4(RADIO_REQ_)
+    RADIO_CALL_1_5(RADIO_REQ_)
 #undef RADIO_REQ_
     case RADIO_REQ_START_NETWORK_SCAN_1_2:     return "startNetworkScan_1_2";
     case RADIO_REQ_SET_INDICATION_FILTER_1_2:  return "setIndicationFilter_1_2";
@@ -92,6 +93,7 @@ radio_resp_name(
     RADIO_CALL_1_2(RADIO_RESP_)
     RADIO_CALL_1_3(RADIO_RESP_)
     RADIO_CALL_1_4(RADIO_RESP_)
+    RADIO_CALL_1_5(RADIO_RESP_)
 #undef RADIO_RESP_
     case RADIO_RESP_GET_CELL_INFO_LIST_1_2:
         return "getCellInfoListResponse_1_2";
@@ -113,6 +115,12 @@ radio_resp_name(
         return "getIccCardStatusResponse_1_4";
     case RADIO_RESP_GET_DATA_CALL_LIST_RESPONSE_1_4:
         return "getDataCallListResponse_1_4";
+    case RADIO_RESP_GET_DATA_CALL_LIST_1_5:
+        return "getDataCallList_1_5";
+    case RADIO_RESP_GET_CELL_INFO_LIST_1_5:
+        return "getCellInfoListResponse_1_5";
+    case RADIO_RESP_GET_ICC_CARD_STATUS_1_5:
+        return "getIccCardStatus_1_5";
     case RADIO_RESP_ANY:
         break;
     }
@@ -130,6 +138,7 @@ radio_ind_name(
     RADIO_EVENT_1_1(RADIO_IND_)
     RADIO_EVENT_1_2(RADIO_IND_)
     RADIO_EVENT_1_4(RADIO_IND_)
+    RADIO_EVENT_1_5(RADIO_IND_)
 #undef RADIO_IND_
     case RADIO_IND_ANY:
         break;
@@ -160,6 +169,7 @@ radio_req_resp(
     RADIO_CALL_1_2(RADIO_REQ_)
     RADIO_CALL_1_3(RADIO_REQ_)
     RADIO_CALL_1_4(RADIO_REQ_)
+    RADIO_CALL_1_5(RADIO_REQ_)
 #undef RADIO_REQ_
     case RADIO_REQ_SETUP_DATA_CALL_1_2:
         return RADIO_RESP_SETUP_DATA_CALL;
@@ -237,10 +247,8 @@ radio_req_resp2(
             return RADIO_RESP_GET_ICC_CARD_STATUS_1_2;
         case RADIO_INTERFACE_1_4:
             return RADIO_RESP_GET_ICC_CARD_STATUS_1_4;
-        /*
         case RADIO_INTERFACE_1_5:
             return RADIO_RESP_GET_ICC_CARD_STATUS_1_5;
-        */
         case RADIO_INTERFACE_NONE:
         case RADIO_INTERFACE_COUNT:
             break;
@@ -265,6 +273,8 @@ radio_req_resp2(
             return RADIO_RESP_GET_CELL_INFO_LIST_1_2;
         case RADIO_INTERFACE_1_4:
             return RADIO_RESP_GET_CELL_INFO_LIST_1_4;
+        case RADIO_INTERFACE_1_5:
+            return RADIO_RESP_GET_CELL_INFO_LIST_1_5;
         /*
         default:
             return RADIO_RESP_GET_CELL_INFO_LIST_1_5;
@@ -367,6 +377,8 @@ radio_req_resp2(
             return RADIO_RESP_GET_DATA_CALL_LIST;
         case RADIO_INTERFACE_1_4:
             return RADIO_RESP_GET_DATA_CALL_LIST_1_4;
+        case RADIO_INTERFACE_1_5:
+            return RADIO_RESP_GET_DATA_CALL_LIST_1_5;
         /*
         default:
             return RADIO_RESP_GET_DATA_CALL_LIST_1_5;
