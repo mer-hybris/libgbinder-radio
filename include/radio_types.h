@@ -1789,7 +1789,7 @@ typedef struct radio_cell_identity_nr_1_5 {
 G_STATIC_ASSERT(sizeof(RadioCellIdentityNr_1_5) == 120);
 
 typedef struct radio_cell_identity_1_5 {
-    guint8 cellIdentityType RADIO_ALIGNED(4); /* RADIO_CELL_IDENTITY_TYPE_1_5 */
+    guint8 cellIdentityType RADIO_ALIGNED(1); /* RADIO_CELL_IDENTITY_TYPE_1_5 */
     union {
         RadioCellIdentityGsm_1_5 gsm RADIO_ALIGNED(8);
         RadioCellIdentityWcdma_1_5 wcdma RADIO_ALIGNED(8);
@@ -1797,7 +1797,7 @@ typedef struct radio_cell_identity_1_5 {
         RadioCellIdentityCdma_1_2 cdma RADIO_ALIGNED(8);
         RadioCellIdentityLte_1_5 lte RADIO_ALIGNED(8);
         RadioCellIdentityNr_1_5 nr RADIO_ALIGNED(8);
-    } identity;
+    } RADIO_ALIGNED(8) identity;
 } RADIO_ALIGNED(8) RadioCellIdentity_1_5; /* Since 1.5.0 */
 G_STATIC_ASSERT(sizeof(RadioCellIdentity_1_5) == 168);
 
