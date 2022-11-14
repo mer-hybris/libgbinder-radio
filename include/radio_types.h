@@ -2171,34 +2171,43 @@ G_STATIC_ASSERT(sizeof(RadioNetworkScanResult) == 24);
     c(144,145,enableModem,ENABLE_MODEM) \
     c(145,146,getModemStackStatus,GET_MODEM_STACK_STATUS)
 
-#define RADIO_CALL_1_4(c) /* Since 1.2.5 */ \
-    c(146,155,setupDataCall_1_4,SETUP_DATA_CALL_1_4) \
-    c(149,147,emergencyDial,EMERGENCY_DIAL) \
-    c(150,148,startNetworkScan_1_4,START_NETWORK_SCAN_1_4) \
-    c(151,152,getPreferredNetworkTypeBitmap,GET_PREFERRED_NETWORK_TYPE_BITMAP) \
-    c(152,153,setPreferredNetworkTypeBitmap,SET_PREFERRED_NETWORK_TYPE_BITMAP) \
-    c(153,156,setAllowedCarriers_1_4,SET_ALLOWED_CARRIERS_1_4) \
-    c(154,157,getAllowedCarriers_1_4,GET_ALLOWED_CARRIERS_1_4) \
-    c(155,158,getSignalStrength_1_4,GET_SIGNAL_STRENGTH_1_4)
+/*
+ * From 1.2.5 to 1.5.0 there was RADIO_CALL_1_4 which took a macro with 4
+ * arguments as a parameter. In 1.5.1 it was replaced with RADIO_CALL_1_4_
+ * which takes a macro with 5 arguments.
+ */
+#define RADIO_CALL_1_4_(c) /* Since 1.5.1 */ \
+    c(146,155,setupDataCall,SETUP_DATA_CALL,_1_4) \
+    c(149,147,emergencyDial,EMERGENCY_DIAL,) \
+    c(150,148,startNetworkScan,START_NETWORK_SCAN,_1_4) \
+    c(151,152,getPreferredNetworkTypeBitmap,GET_PREFERRED_NETWORK_TYPE_BITMAP,) \
+    c(152,153,setPreferredNetworkTypeBitmap,SET_PREFERRED_NETWORK_TYPE_BITMAP,) \
+    c(153,156,setAllowedCarriers,SET_ALLOWED_CARRIERS,_1_4) \
+    c(154,157,getAllowedCarriers,GET_ALLOWED_CARRIERS,_1_4) \
+    c(155,158,getSignalStrength,GET_SIGNAL_STRENGTH,_1_4)
 
-#define RADIO_CALL_1_5(c) /* Since 1.5.0 */ \
-    c(156,159,setSignalStrengthReportingCriteria_1_5,SET_SIGNAL_STRENGTH_REPORTING_CRITERIA_1_5) \
-    c(157,160,setLinkCapacityReportingCriteria_1_5,SET_LINK_CAPACITY_REPORTING_CRITERIA_1_5) \
-    c(158,161,enableUiccApplications,ENABLE_UICC_APPLICATIONS) \
-    c(159,162,areUiccApplicationsEnabled,ARE_UICC_APPLICATIONS_ENABLED) \
-    c(160,163,setSystemSelectionChannels_1_5,SET_SYSTEM_SELECTION_CHANNELS_1_5) \
-    c(161,164,startNetworkScan_1_5,START_NETWORK_SCAN_1_5) \
-    c(162,165,setupDataCall_1_5,SETUP_DATA_CALL_1_5) \
-    c(163,167,setInitialAttachApn_1_5,SET_INITIAL_ATTACH_APN_1_5) \
-    c(164,168,setDataProfile_1_5,SET_DATA_PROFILE_1_5) \
-    c(165,169,setRadioPower_1_5,SET_RADIO_POWER_1_5) \
-    c(166,170,setIndicationFilter_1_5,SET_INDICATION_FILTER_1_5) \
-    c(167,171,getBarringInfo,GET_BARRING_INFO) \
-    c(168,172,getVoiceRegistrationState_1_5,GET_VOICE_REGISTRATION_STATE_1_5) \
-    c(169,173,getDataRegistrationState_1_5,GET_DATA_REGISTRATION_STATE_1_5) \
-    c(170,175,setNetworkSelectionModeManual_1_5,SET_NETWORK_SELECTION_MODE_MANUAL_1_5) \
-    c(171,176,sendCdmaSmsExpectMore,SEND_CDMA_SMS_EXPECT_MORE) \
-    c(172,177,supplySimDepersonalization,SUPPLY_SIM_PERSONALIZATION)
+/*
+ * Similarly to RADIO_CALL_1_4, RADIO_CALL_1_5 macro which appeared in 1.5.0
+ * was replaced with RADIO_CALL_1_5_ in 1.5.1
+ */
+#define RADIO_CALL_1_5_(c) /* Since 1.5.1 */ \
+    c(156,159,setSignalStrengthReportingCriteria,SET_SIGNAL_STRENGTH_REPORTING_CRITERIA,_1_5) \
+    c(157,160,setLinkCapacityReportingCriteria,SET_LINK_CAPACITY_REPORTING_CRITERIA,_1_5) \
+    c(158,161,enableUiccApplications,ENABLE_UICC_APPLICATIONS,) \
+    c(159,162,areUiccApplicationsEnabled,ARE_UICC_APPLICATIONS_ENABLED,) \
+    c(160,163,setSystemSelectionChannels,SET_SYSTEM_SELECTION_CHANNELS,_1_5) \
+    c(161,164,startNetworkScan,START_NETWORK_SCAN,_1_5) \
+    c(162,165,setupDataCall,SETUP_DATA_CALL,_1_5) \
+    c(163,167,setInitialAttachApn,SET_INITIAL_ATTACH_APN,_1_5) \
+    c(164,168,setDataProfile,SET_DATA_PROFILE,_1_5) \
+    c(165,169,setRadioPower,SET_RADIO_POWER,_1_5) \
+    c(166,170,setIndicationFilter,SET_INDICATION_FILTER,_1_5) \
+    c(167,171,getBarringInfo,GET_BARRING_INFO,) \
+    c(168,172,getVoiceRegistrationState,GET_VOICE_REGISTRATION_STATE,_1_5) \
+    c(169,173,getDataRegistrationState,GET_DATA_REGISTRATION_STATE,_1_5) \
+    c(170,175,setNetworkSelectionModeManual,SET_NETWORK_SELECTION_MODE_MANUAL,_1_5) \
+    c(171,176,sendCdmaSmsExpectMore,SEND_CDMA_SMS_EXPECT_MORE,) \
+    c(172,177,supplySimDepersonalization,SUPPLY_SIM_PERSONALIZATION,)
 
 /* e(code,eventName,EVENT_NAME) */
 #define RADIO_EVENT_1_0(e) \
@@ -2280,6 +2289,7 @@ typedef enum radio_req {
     RADIO_REQ_ANY = 0,
     RADIO_REQ_NONE = 0,
 #define RADIO_REQ_(req,resp,Name,NAME) RADIO_REQ_##NAME = req,
+#define RADIO_REQ__(req,resp,Name,NAME,x) RADIO_REQ_##NAME##x = req,
 
     /* android.hardware.radio@1.0::IRadio */
     RADIO_REQ_SET_RESPONSE_FUNCTIONS = 1, /* setResponseFunctions */
@@ -2304,15 +2314,16 @@ typedef enum radio_req {
     RADIO_1_3_REQ_LAST = RADIO_REQ_GET_MODEM_STACK_STATUS,
 
     /* android.hardware.radio@1.4::IRadio */
-    RADIO_CALL_1_4(RADIO_REQ_) /* Since 1.2.5 */
+    RADIO_CALL_1_4_(RADIO_REQ__) /* Since 1.2.5 */
     RADIO_REQ_SET_INITIAL_ATTACH_APN_1_4 = 147,
     RADIO_REQ_SET_DATA_PROFILE_1_4 = 148,
     RADIO_1_4_REQ_LAST = RADIO_REQ_GET_SIGNAL_STRENGTH_1_4,
 
     /* android.hardware.radio@1.5::IRadio */
-    RADIO_CALL_1_5(RADIO_REQ_) /* Since 1.5.0 */
+    RADIO_CALL_1_5_(RADIO_REQ__) /* Since 1.5.0 */
     RADIO_1_5_REQ_LAST = RADIO_REQ_SUPPLY_SIM_PERSONALIZATION
 #undef RADIO_REQ_
+#undef RADIO_REQ__
 } RADIO_REQ;
 G_STATIC_ASSERT(sizeof(RADIO_REQ) == 4);
 
@@ -2320,6 +2331,7 @@ typedef enum radio_resp {
     RADIO_RESP_ANY = 0,
     RADIO_RESP_NONE = 0,
 #define RADIO_RESP_(req,resp,Name,NAME) RADIO_RESP_##NAME = resp,
+#define RADIO_RESP__(req,resp,Name,NAME,x) RADIO_RESP_##NAME##x = resp,
 
     /* android.hardware.radio@1.0::IRadioResponse */
     RADIO_CALL_1_0(RADIO_RESP_)
@@ -2345,7 +2357,7 @@ typedef enum radio_resp {
     RADIO_1_3_RESP_LAST = RADIO_RESP_GET_MODEM_STACK_STATUS,
 
     /* android.hardware.radio@1.4::IRadioResponse */
-    RADIO_CALL_1_4(RADIO_RESP_) /* Since 1.2.5 */
+    RADIO_CALL_1_4_(RADIO_RESP__) /* Since 1.2.5 */
     RADIO_RESP_GET_CELL_INFO_LIST_1_4 = 149,
     RADIO_RESP_GET_DATA_REGISTRATION_STATE_1_4 = 150,
     RADIO_RESP_GET_ICC_CARD_STATUS_1_4 = 151,
@@ -2353,12 +2365,13 @@ typedef enum radio_resp {
     RADIO_1_4_RESP_LAST = RADIO_RESP_GET_SIGNAL_STRENGTH_1_4,
 
     /* android.hardware.radio@1.5::IRadioResponse */
-    RADIO_CALL_1_5(RADIO_RESP_) /* Since 1.5.0 */
+    RADIO_CALL_1_5_(RADIO_RESP__) /* Since 1.5.0 */
     RADIO_RESP_GET_DATA_CALL_LIST_1_5 = 166,
     RADIO_RESP_GET_CELL_INFO_LIST_1_5 = 174,
     RADIO_RESP_GET_ICC_CARD_STATUS_1_5 = 178,
     RADIO_1_5_RESP_LAST = RADIO_RESP_GET_ICC_CARD_STATUS_1_5
 #undef RADIO_RESP_
+#undef RADIO_RESP__
 } RADIO_RESP;
 G_STATIC_ASSERT(sizeof(RADIO_RESP) == 4);
 

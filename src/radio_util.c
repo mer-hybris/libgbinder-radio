@@ -61,13 +61,16 @@ radio_req_name(
     case RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT: return "responseAcknowledgement";
 #define RADIO_REQ_(req,resp,Name,NAME) \
     case RADIO_REQ_##NAME: return #Name;
+#define RADIO_REQ__(req,resp,Name,NAME,x) \
+    case RADIO_REQ_##NAME##x: return #Name #x;
     RADIO_CALL_1_0(RADIO_REQ_)
     RADIO_CALL_1_1(RADIO_REQ_)
     RADIO_CALL_1_2(RADIO_REQ_)
     RADIO_CALL_1_3(RADIO_REQ_)
-    RADIO_CALL_1_4(RADIO_REQ_)
-    RADIO_CALL_1_5(RADIO_REQ_)
+    RADIO_CALL_1_4_(RADIO_REQ__)
+    RADIO_CALL_1_5_(RADIO_REQ__)
 #undef RADIO_REQ_
+#undef RADIO_REQ__
     case RADIO_REQ_START_NETWORK_SCAN_1_2:     return "startNetworkScan_1_2";
     case RADIO_REQ_SET_INDICATION_FILTER_1_2:  return "setIndicationFilter_1_2";
     case RADIO_REQ_SETUP_DATA_CALL_1_2:        return "setupDataCall_1_2";
@@ -88,13 +91,16 @@ radio_resp_name(
     case RADIO_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
 #define RADIO_RESP_(req,resp,Name,NAME) \
     case RADIO_RESP_##NAME: return #Name "Response";
+#define RADIO_RESP__(req,resp,Name,NAME,x) \
+    case RADIO_RESP_##NAME##x: return #Name "Response" #x;
     RADIO_CALL_1_0(RADIO_RESP_)
     RADIO_CALL_1_1(RADIO_RESP_)
     RADIO_CALL_1_2(RADIO_RESP_)
     RADIO_CALL_1_3(RADIO_RESP_)
-    RADIO_CALL_1_4(RADIO_RESP_)
-    RADIO_CALL_1_5(RADIO_RESP_)
+    RADIO_CALL_1_4_(RADIO_RESP__)
+    RADIO_CALL_1_5_(RADIO_RESP__)
 #undef RADIO_RESP_
+#undef RADIO_RESP__
     case RADIO_RESP_GET_CELL_INFO_LIST_1_2:
         return "getCellInfoListResponse_1_2";
     case RADIO_RESP_GET_ICC_CARD_STATUS_1_2:
@@ -162,15 +168,18 @@ radio_req_resp(
     RADIO_REQ req)
 {
     switch (req) {
-#define RADIO_REQ_(req,resp,Name,NAME) \
+#define RADIO_REQ_RESP_(req,resp,Name,NAME) \
     case RADIO_REQ_##NAME: return RADIO_RESP_##NAME;
-    RADIO_CALL_1_0(RADIO_REQ_)
-    RADIO_CALL_1_1(RADIO_REQ_)
-    RADIO_CALL_1_2(RADIO_REQ_)
-    RADIO_CALL_1_3(RADIO_REQ_)
-    RADIO_CALL_1_4(RADIO_REQ_)
-    RADIO_CALL_1_5(RADIO_REQ_)
-#undef RADIO_REQ_
+#define RADIO_REQ_RESP__(req,resp,Name,NAME,x) \
+    case RADIO_REQ_##NAME##x: return RADIO_RESP_##NAME##x;
+    RADIO_CALL_1_0(RADIO_REQ_RESP_)
+    RADIO_CALL_1_1(RADIO_REQ_RESP_)
+    RADIO_CALL_1_2(RADIO_REQ_RESP_)
+    RADIO_CALL_1_3(RADIO_REQ_RESP_)
+    RADIO_CALL_1_4_(RADIO_REQ_RESP__)
+    RADIO_CALL_1_5_(RADIO_REQ_RESP__)
+#undef RADIO_REQ_RESP_
+#undef RADIO_REQ_RESP__
     case RADIO_REQ_SETUP_DATA_CALL_1_2:
         return RADIO_RESP_SETUP_DATA_CALL;
     case RADIO_REQ_DEACTIVATE_DATA_CALL_1_2:
