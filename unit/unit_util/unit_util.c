@@ -68,6 +68,10 @@ test_req_name(
         "emergencyDial");
     g_assert_cmpstr(radio_req_name(RADIO_REQ_ENABLE_UICC_APPLICATIONS),==,
         "enableUiccApplications");
+    g_assert_cmpstr(radio_req_name(RADIO_REQ_START_NETWORK_SCAN_1_4),==,
+        "startNetworkScan_1_4");
+    g_assert_cmpstr(radio_req_name(RADIO_REQ_START_NETWORK_SCAN_1_5),==,
+        "startNetworkScan_1_5");
 }
 
 /*==========================================================================*
@@ -93,6 +97,10 @@ test_resp_name(
         "emergencyDialResponse");
     g_assert_cmpstr(radio_resp_name(RADIO_RESP_ENABLE_UICC_APPLICATIONS),==,
         "enableUiccApplicationsResponse");
+    g_assert_cmpstr(radio_resp_name(RADIO_RESP_START_NETWORK_SCAN_1_4),==,
+        "startNetworkScanResponse_1_4");
+    g_assert_cmpstr(radio_resp_name(RADIO_RESP_START_NETWORK_SCAN_1_5),==,
+        "startNetworkScanResponse_1_5");
 }
 
 /*==========================================================================*
