@@ -306,6 +306,14 @@ typedef enum radio_cell_identity_type_1_5 {
     RADIO_CELL_IDENTITY_1_5_NR
 } RADIO_CELL_IDENTITY_TYPE_1_5; /* Since 1.5.0 */
 
+/* Valid values of RadioNetworkScanRequest_1_5::type */
+typedef enum radio_network_scan_specifier_1_5_type {
+    RADIO_NETWORK_SCAN_SPECIFIER_1_5_GERAN = 0,
+    RADIO_NETWORK_SCAN_SPECIFIER_1_5_UTRAN,
+    RADIO_NETWORK_SCAN_SPECIFIER_1_5_EUTRAN,
+    RADIO_NETWORK_SCAN_SPECIFIER_1_5_NGRAN
+} RADIO_NETWORK_SCAN_SPECIFIER_1_5_TYPE; /* Since 1.5.2 */
+
 typedef enum radio_tech {
     RADIO_TECH_UNKNOWN = 0,
     RADIO_TECH_GPRS,
@@ -561,6 +569,12 @@ typedef enum radio_scan_status {
 } RADIO_SCAN_STATUS; /* Since 1.2.5 */
 G_STATIC_ASSERT(sizeof(RADIO_SCAN_STATUS) == 4);
 
+typedef enum radio_scan_type {
+    RADIO_SCAN_ONE_SHOT,
+    RADIO_SCAN_PERIODIC
+} RADIO_SCAN_TYPE; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RADIO_SCAN_TYPE) == 4);
+
 typedef enum radio_uicc_sub_act {
     RADIO_UICC_SUB_DEACTIVATE,
     RADIO_UICC_SUB_ACTIVATE
@@ -656,6 +670,171 @@ typedef enum radio_clir {
     RADIO_CLIR_SUPPRESSION
 } RADIO_CLIR; /* Since 1.4.3 */
 G_STATIC_ASSERT(sizeof(RADIO_CLIR) == 4);
+
+typedef enum radio_geran_band {
+    RADIO_GERAN_BAND_T380 = 1,
+    RADIO_GERAN_BAND_T410 = 2,
+    RADIO_GERAN_BAND_450 = 3,
+    RADIO_GERAN_BAND_480 = 4,
+    RADIO_GERAN_BAND_710 = 5,
+    RADIO_GERAN_BAND_750 = 6,
+    RADIO_GERAN_BAND_T810 = 7,
+    RADIO_GERAN_BAND_850 = 8,
+    RADIO_GERAN_BAND_P900 = 9,
+    RADIO_GERAN_BAND_E900 = 10,
+    RADIO_GERAN_BAND_R900 = 11,
+    RADIO_GERAN_BAND_DCS1800 = 12,
+    RADIO_GERAN_BAND_PCS1900 = 13,
+    RADIO_GERAN_BAND_ER900 = 14
+} RADIO_GERAN_BAND; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RADIO_GERAN_BAND) == 4);
+
+typedef enum radio_utran_band {
+    RADIO_UTRAN_BAND_1 = 1,
+    RADIO_UTRAN_BAND_2 = 2,
+    RADIO_UTRAN_BAND_3 = 3,
+    RADIO_UTRAN_BAND_4 = 4,
+    RADIO_UTRAN_BAND_5 = 5,
+    RADIO_UTRAN_BAND_6 = 6,
+    RADIO_UTRAN_BAND_7 = 7,
+    RADIO_UTRAN_BAND_8 = 8,
+    RADIO_UTRAN_BAND_9 = 9,
+    RADIO_UTRAN_BAND_10 = 10,
+    RADIO_UTRAN_BAND_11 = 11,
+    RADIO_UTRAN_BAND_12 = 12,
+    RADIO_UTRAN_BAND_13 = 13,
+    RADIO_UTRAN_BAND_14 = 14,
+    RADIO_UTRAN_BAND_19 = 19,
+    RADIO_UTRAN_BAND_20 = 20,
+    RADIO_UTRAN_BAND_21 = 21,
+    RADIO_UTRAN_BAND_22 = 22,
+    RADIO_UTRAN_BAND_25 = 25,
+    RADIO_UTRAN_BAND_26 = 26,
+    RADIO_UTRAN_BAND_A = 101, /* Since IRadio 1.5 */
+    RADIO_UTRAN_BAND_B = 102, /* Since IRadio 1.5 */
+    RADIO_UTRAN_BAND_C = 103, /* Since IRadio 1.5 */
+    RADIO_UTRAN_BAND_D = 104, /* Since IRadio 1.5 */
+    RADIO_UTRAN_BAND_E = 105, /* Since IRadio 1.5 */
+    RADIO_UTRAN_BAND_F = 106  /* Since IRadio 1.5 */
+} RADIO_UTRAN_BAND; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RADIO_UTRAN_BAND) == 4);
+
+typedef enum radio_eutran_band {
+    RADIO_EUTRAN_BAND_1 = 1,
+    RADIO_EUTRAN_BAND_2 = 2,
+    RADIO_EUTRAN_BAND_3 = 3,
+    RADIO_EUTRAN_BAND_4 = 4,
+    RADIO_EUTRAN_BAND_5 = 5,
+    RADIO_EUTRAN_BAND_6 = 6,
+    RADIO_EUTRAN_BAND_7 = 7,
+    RADIO_EUTRAN_BAND_8 = 8,
+    RADIO_EUTRAN_BAND_9 = 9,
+    RADIO_EUTRAN_BAND_10 = 10,
+    RADIO_EUTRAN_BAND_11 = 11,
+    RADIO_EUTRAN_BAND_12 = 12,
+    RADIO_EUTRAN_BAND_13 = 13,
+    RADIO_EUTRAN_BAND_14 = 14,
+    RADIO_EUTRAN_BAND_17 = 17,
+    RADIO_EUTRAN_BAND_18 = 18,
+    RADIO_EUTRAN_BAND_19 = 19,
+    RADIO_EUTRAN_BAND_20 = 20,
+    RADIO_EUTRAN_BAND_21 = 21,
+    RADIO_EUTRAN_BAND_22 = 22,
+    RADIO_EUTRAN_BAND_23 = 23,
+    RADIO_EUTRAN_BAND_24 = 24,
+    RADIO_EUTRAN_BAND_25 = 25,
+    RADIO_EUTRAN_BAND_26 = 26,
+    RADIO_EUTRAN_BAND_27 = 27,
+    RADIO_EUTRAN_BAND_28 = 28,
+    RADIO_EUTRAN_BAND_30 = 30,
+    RADIO_EUTRAN_BAND_31 = 31,
+    RADIO_EUTRAN_BAND_33 = 33,
+    RADIO_EUTRAN_BAND_34 = 34,
+    RADIO_EUTRAN_BAND_35 = 35,
+    RADIO_EUTRAN_BAND_36 = 36,
+    RADIO_EUTRAN_BAND_37 = 37,
+    RADIO_EUTRAN_BAND_38 = 38,
+    RADIO_EUTRAN_BAND_39 = 39,
+    RADIO_EUTRAN_BAND_40 = 40,
+    RADIO_EUTRAN_BAND_41 = 41,
+    RADIO_EUTRAN_BAND_42 = 42,
+    RADIO_EUTRAN_BAND_43 = 43,
+    RADIO_EUTRAN_BAND_44 = 44,
+    RADIO_EUTRAN_BAND_45 = 45,
+    RADIO_EUTRAN_BAND_46 = 46,
+    RADIO_EUTRAN_BAND_47 = 47,
+    RADIO_EUTRAN_BAND_48 = 48,
+    RADIO_EUTRAN_BAND_49 = 49, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_50 = 50, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_51 = 51, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_52 = 52, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_53 = 53, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_65 = 65,
+    RADIO_EUTRAN_BAND_66 = 66,
+    RADIO_EUTRAN_BAND_68 = 68,
+    RADIO_EUTRAN_BAND_70 = 70,
+    RADIO_EUTRAN_BAND_71 = 71, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_72 = 72, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_73 = 73, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_74 = 74, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_85 = 85, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_87 = 87, /* Since IRadio 1.5 */
+    RADIO_EUTRAN_BAND_88 = 88  /* Since IRadio 1.5 */
+} RADIO_EUTRAN_BAND; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RADIO_EUTRAN_BAND) == 4);
+
+typedef enum radio_ngran_band {
+    RADIO_NGRAN_BAND_1 = 1,
+    RADIO_NGRAN_BAND_2 = 2,
+    RADIO_NGRAN_BAND_3 = 3,
+    RADIO_NGRAN_BAND_5 = 5,
+    RADIO_NGRAN_BAND_7 = 7,
+    RADIO_NGRAN_BAND_8 = 8,
+    RADIO_NGRAN_BAND_12 = 12,
+    RADIO_NGRAN_BAND_14 = 14,
+    RADIO_NGRAN_BAND_18 = 18,
+    RADIO_NGRAN_BAND_20 = 20,
+    RADIO_NGRAN_BAND_25 = 25,
+    RADIO_NGRAN_BAND_28 = 28,
+    RADIO_NGRAN_BAND_29 = 29,
+    RADIO_NGRAN_BAND_30 = 30,
+    RADIO_NGRAN_BAND_34 = 34,
+    RADIO_NGRAN_BAND_38 = 38,
+    RADIO_NGRAN_BAND_39 = 39,
+    RADIO_NGRAN_BAND_40 = 40,
+    RADIO_NGRAN_BAND_41 = 41,
+    RADIO_NGRAN_BAND_48 = 48,
+    RADIO_NGRAN_BAND_50 = 50,
+    RADIO_NGRAN_BAND_51 = 51,
+    RADIO_NGRAN_BAND_65 = 65,
+    RADIO_NGRAN_BAND_66 = 66,
+    RADIO_NGRAN_BAND_70 = 70,
+    RADIO_NGRAN_BAND_71 = 71,
+    RADIO_NGRAN_BAND_74 = 74,
+    RADIO_NGRAN_BAND_75 = 75,
+    RADIO_NGRAN_BAND_76 = 76,
+    RADIO_NGRAN_BAND_77 = 77,
+    RADIO_NGRAN_BAND_78 = 78,
+    RADIO_NGRAN_BAND_79 = 79,
+    RADIO_NGRAN_BAND_80 = 80,
+    RADIO_NGRAN_BAND_81 = 81,
+    RADIO_NGRAN_BAND_82 = 82,
+    RADIO_NGRAN_BAND_83 = 83,
+    RADIO_NGRAN_BAND_84 = 84,
+    RADIO_NGRAN_BAND_86 = 86,
+    RADIO_NGRAN_BAND_89 = 89,
+    RADIO_NGRAN_BAND_90 = 90,
+    RADIO_NGRAN_BAND_91 = 91,
+    RADIO_NGRAN_BAND_92 = 92,
+    RADIO_NGRAN_BAND_93 = 93,
+    RADIO_NGRAN_BAND_94 = 94,
+    RADIO_NGRAN_BAND_95 = 95,
+    RADIO_NGRAN_BAND_257 = 257,
+    RADIO_NGRAN_BAND_258 = 258,
+    RADIO_NGRAN_BAND_260 = 260,
+    RADIO_NGRAN_BAND_261 = 261
+} RADIO_NGRAN_BAND; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RADIO_NGRAN_BAND) == 4);
 
 typedef enum radio_last_call_fail_cause {
     RADIO_LAST_CALL_FAIL_NONE = 0,
@@ -2019,9 +2198,51 @@ typedef struct radio_network_scan_result {
     RADIO_SCAN_STATUS status RADIO_ALIGNED(4);
     RADIO_ERROR error RADIO_ALIGNED(4);
     GBinderHidlVec networkInfos RADIO_ALIGNED(8); /* vec<RadioCellInfo> */
+                                               /* or vec<RadioCellInfo_1_2> */
                                                /* or vec<RadioCellInfo_1_4> */
+                                               /* or vec<RadioCellInfo_1_5> */
 } RADIO_ALIGNED(8) RadioNetworkScanResult; /* Since 1.2.5 */
 G_STATIC_ASSERT(sizeof(RadioNetworkScanResult) == 24);
+
+typedef struct radio_network_scan_specifier {
+    RADIO_ACCESS_NETWORK radioAccessNetwork RADIO_ALIGNED(4);
+    GBinderHidlVec geranBands RADIO_ALIGNED(8); /* vec<RADIO_GERAN_BAND> */
+    GBinderHidlVec utranBands RADIO_ALIGNED(8); /* vec<RADIO_UTRAN_BAND> */
+    GBinderHidlVec eutranBands RADIO_ALIGNED(8); /* vec<RADIO_EUTRAN_BAND> */
+    GBinderHidlVec channels RADIO_ALIGNED(8); /* vec<int32_t> */
+} RADIO_ALIGNED(8) RadioAccessSpecifier; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RadioAccessSpecifier) == 72);
+
+typedef struct radio_network_scan_specifier_1_5 {
+    RADIO_ACCESS_NETWORK radioAccessNetwork RADIO_ALIGNED(4);
+    guint8 type RADIO_ALIGNED(8); /* RADIO_NETWORK_SCAN_SPECIFIER_1_5_TYPE */
+    GBinderHidlVec bands RADIO_ALIGNED(8);  /* vec<RADIO_GERAN_BAND> */
+                                         /* or vec<RADIO_UTRAN_BAND> */
+                                         /* or vec<RADIO_EUTRAN_BAND> */
+                                         /* or vec<RADIO_NGRAN_BAND> */
+    GBinderHidlVec channels RADIO_ALIGNED(8); /* vec<int32_t> */
+} RADIO_ALIGNED(8) RadioAccessSpecifier_1_5; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RadioAccessSpecifier_1_5) == 48);
+
+typedef struct radio_network_scan_request {
+    RADIO_SCAN_TYPE type RADIO_ALIGNED(4);
+    gint32 interval RADIO_ALIGNED(4); /* Periodic scan interval, seconds */
+    GBinderHidlVec specifiers RADIO_ALIGNED(8); /* vec<RadioAccessSpecifier> */
+} RADIO_ALIGNED(8) RadioNetworkScanRequest; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RadioNetworkScanRequest) == 24);
+
+typedef struct radio_network_scan_request_1_5 {
+    RADIO_SCAN_TYPE type RADIO_ALIGNED(4);
+    gint32 interval RADIO_ALIGNED(4); /* [5..300] seconds */
+    GBinderHidlVec specifiers RADIO_ALIGNED(8); /*vec <RadioAccessSpecifier> */
+                                          /*or vec<RadioAccessSpecifier_1_5> */
+    gint32 maxSearchTime RADIO_ALIGNED(4);      /* [60..3600] seconds */
+    guint8 incrementalResults RADIO_ALIGNED(1); /* TRUE/FALSE */
+    gint32 incrementalResultsPeriodicity RADIO_ALIGNED(4); /* [1..10] */
+    GBinderHidlVec mccMncs RADIO_ALIGNED(8);    /* vec<GBinderHidlString> */
+} RADIO_ALIGNED(8) RadioNetworkScanRequest_1_2,
+    RadioNetworkScanRequest_1_5; /* Since 1.5.2 */
+G_STATIC_ASSERT(sizeof(RadioNetworkScanRequest_1_5) == 56);
 
 /* c(req,resp,callName,CALL_NAME) */
 #define RADIO_CALL_1_0(c) \
