@@ -1,3 +1,9 @@
+libgbinder-radio (1.5.3) unstable; urgency=medium
+
+  * Added RADIO_ACCESS_NETWORKS enum
+
+ -- Slava Monich <slava.monich@jolla.com>  Sat, 19 Nov 2022 17:48:38 +0200
+
 libgbinder-radio (1.5.2) unstable; urgency=medium
 
   * Added network scan related types
