@@ -1619,11 +1619,11 @@ typedef struct radio_cell_info_1_2 {
     guint8 registered RADIO_ALIGNED(1);
     gint32 timeStampType RADIO_ALIGNED(4);
     guint64 timeStamp RADIO_ALIGNED(8);
-    GBinderHidlVec gsm RADIO_ALIGNED(8);     /* vec<RadioCellInfoGsm> */
-    GBinderHidlVec cdma RADIO_ALIGNED(8);    /* vec<RadioCellInfoCdma> */
-    GBinderHidlVec lte RADIO_ALIGNED(8);     /* vec<RadioCellInfoLte> */
-    GBinderHidlVec wcdma RADIO_ALIGNED(8);   /* vec<RadioCellInfoWcdma> */
-    GBinderHidlVec tdscdma RADIO_ALIGNED(8); /* vec<RadioCellInfoTdscdma> */
+    GBinderHidlVec gsm RADIO_ALIGNED(8);     /* vec<RadioCellInfoGsm_1_2> */
+    GBinderHidlVec cdma RADIO_ALIGNED(8);    /* vec<RadioCellInfoCdma_1_2> */
+    GBinderHidlVec lte RADIO_ALIGNED(8);     /* vec<RadioCellInfoLte_1_2> */
+    GBinderHidlVec wcdma RADIO_ALIGNED(8);   /* vec<RadioCellInfoWcdma_1_2> */
+    GBinderHidlVec tdscdma RADIO_ALIGNED(8); /* vec<RadioCellInfoTdscdma_1_2> */
     RADIO_CELL_CONNECTION_STATUS connectionStatus RADIO_ALIGNED(4);
 } RADIO_ALIGNED(8) RadioCellInfo_1_2; /* Since 1.2.0 */
 G_STATIC_ASSERT(sizeof(RadioCellInfo_1_2) == 112);
@@ -2055,7 +2055,7 @@ G_STATIC_ASSERT(sizeof(RadioCellInfoNr) == 112);
 
 typedef struct radio_cell_info_1_4 {
     guint8 registered RADIO_ALIGNED(1);
-    guint32 connectionStatus RADIO_ALIGNED(4);
+    RADIO_CELL_CONNECTION_STATUS connectionStatus RADIO_ALIGNED(4);
     guint8 cellInfoType RADIO_ALIGNED(1); /* RADIO_CELL_INFO_TYPE_1_4 */
     union {
         RadioCellInfoGsm_1_2 gsm RADIO_ALIGNED(8);
@@ -2102,7 +2102,7 @@ typedef struct radio_cell_info_1_5 {
     guint8 registered RADIO_ALIGNED(1);
     gint32 timeStampType RADIO_ALIGNED(4);
     guint64 timeStamp RADIO_ALIGNED(8);
-    guint32 connectionStatus RADIO_ALIGNED(4);
+    RADIO_CELL_CONNECTION_STATUS connectionStatus RADIO_ALIGNED(4);
     guint8 cellInfoType RADIO_ALIGNED(8); /* RADIO_CELL_INFO_TYPE_1_5 */
     union {
         RadioCellInfoGsm_1_5 gsm RADIO_ALIGNED(8);
