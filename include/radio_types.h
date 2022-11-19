@@ -501,6 +501,7 @@ typedef enum radio_data_request_reason {
 } RADIO_DATA_REQUEST_REASON; /* Since 1.2.0 */
 G_STATIC_ASSERT(sizeof(RADIO_DATA_REQUEST_REASON) == 4);
 
+/* This is AccessNetwork from types.hal */
 typedef enum radio_access_network {
     RADIO_ACCESS_NETWORK_UNKNOWN,
     RADIO_ACCESS_NETWORK_GERAN,
@@ -511,6 +512,17 @@ typedef enum radio_access_network {
     RADIO_ACCESS_NETWORK_NGRAN /* Since 1.5.0 */
 } RADIO_ACCESS_NETWORK; /* Since 1.2.0 */
 G_STATIC_ASSERT(sizeof(RADIO_ACCESS_NETWORK) == 4);
+
+/* And this is RadioAccessNetworks (easy to confuse with AccessNetwork) */
+typedef enum radio_access_networks {
+    RADIO_ACCESS_NETWORKS_UNKNOWN,
+    RADIO_ACCESS_NETWORKS_GERAN,
+    RADIO_ACCESS_NETWORKS_UTRAN,
+    RADIO_ACCESS_NETWORKS_EUTRAN,
+    RADIO_ACCESS_NETWORKS_NGRAN,
+    RADIO_ACCESS_NETWORKS_CDMA2000
+} RADIO_ACCESS_NETWORKS; /* Since 1.5.3 */
+G_STATIC_ASSERT(sizeof(RADIO_ACCESS_NETWORKS) == 4);
 
 typedef enum radio_data_profile_type {
     RADIO_DATA_PROFILE_COMMON,
@@ -2205,7 +2217,7 @@ typedef struct radio_network_scan_result {
 G_STATIC_ASSERT(sizeof(RadioNetworkScanResult) == 24);
 
 typedef struct radio_network_scan_specifier {
-    RADIO_ACCESS_NETWORK radioAccessNetwork RADIO_ALIGNED(4);
+    RADIO_ACCESS_NETWORKS radioAccessNetwork RADIO_ALIGNED(4);
     GBinderHidlVec geranBands RADIO_ALIGNED(8); /* vec<RADIO_GERAN_BAND> */
     GBinderHidlVec utranBands RADIO_ALIGNED(8); /* vec<RADIO_UTRAN_BAND> */
     GBinderHidlVec eutranBands RADIO_ALIGNED(8); /* vec<RADIO_EUTRAN_BAND> */
@@ -2214,7 +2226,7 @@ typedef struct radio_network_scan_specifier {
 G_STATIC_ASSERT(sizeof(RadioAccessSpecifier) == 72);
 
 typedef struct radio_network_scan_specifier_1_5 {
-    RADIO_ACCESS_NETWORK radioAccessNetwork RADIO_ALIGNED(4);
+    RADIO_ACCESS_NETWORKS radioAccessNetwork RADIO_ALIGNED(4);
     guint8 type RADIO_ALIGNED(8); /* RADIO_NETWORK_SCAN_SPECIFIER_1_5_TYPE */
     GBinderHidlVec bands RADIO_ALIGNED(8);  /* vec<RADIO_GERAN_BAND> */
                                          /* or vec<RADIO_UTRAN_BAND> */
