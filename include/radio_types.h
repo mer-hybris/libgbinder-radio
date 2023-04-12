@@ -1369,6 +1369,12 @@ typedef struct radio_app_status {
 } RADIO_ALIGNED(8) RadioAppStatus;
 G_STATIC_ASSERT(sizeof(RadioAppStatus) == 64);
 
+typedef struct radio_app_status_1_5 {
+    RadioAppStatus base RADIO_ALIGNED(8);
+    RADIO_PERSO_SUBSTATE persoSubstate RADIO_ALIGNED(4);
+} RADIO_ALIGNED(8) RadioAppStatus_1_5; /* Since 1.5.5 */
+G_STATIC_ASSERT(sizeof(RadioAppStatus_1_5) == 72);
+
 typedef struct radio_uus_info {
     gint32 uusType RADIO_ALIGNED(4);
     gint32 uusDcs RADIO_ALIGNED(4);
