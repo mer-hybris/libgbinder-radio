@@ -1,3 +1,11 @@
+libgbinder-radio (1.5.5) unstable; urgency=medium
+
+  * Fix RADIO_CELL_IDENTITY_TYPE_1_5 enum values
+  * Add missing radio indication filter enum values for IRadio@1.5 interface
+  * Add missing RadioAppStatus_1_5 struct
+
+ -- Matti Lehtimäki <matti.lehtimaki@jolla.com>  Fri, 14 Apr 2023 22:42:38 +0300
+
 libgbinder-radio (1.5.4) unstable; urgency=medium
 
   * Added NR specific types
