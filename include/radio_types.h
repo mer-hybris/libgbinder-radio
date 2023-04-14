@@ -245,7 +245,14 @@ typedef enum radio_ind_filter {
     /* Since 1.4.4 (those appeared in IRadio@1.2) */
     RADIO_IND_FILTER_LINK_CAPACITY_ESTIMATE = 0x08,
     RADIO_IND_FILTER_PHYSICAL_CHANNEL_CONFIG = 0x10,
-    RADIO_IND_FILTER_ALL_1_2 = ~0
+    RADIO_IND_FILTER_ALL_1_2 =
+        RADIO_IND_FILTER_ALL |
+        RADIO_IND_FILTER_LINK_CAPACITY_ESTIMATE |
+        RADIO_IND_FILTER_PHYSICAL_CHANNEL_CONFIG,
+    /* Since 1.5.5 (those appeared in IRadio@1.5) */
+    RADIO_IND_FILTER_REGISTRATION_FAILURE = 0x20,
+    RADIO_IND_FILTER_BARRING_INFO = 0x40,
+    RADIO_IND_FILTER_ALL_1_5 = ~0
 } RADIO_IND_FILTER;
 G_STATIC_ASSERT(sizeof(RADIO_IND_FILTER) == 4);
 
@@ -298,7 +305,8 @@ typedef enum radio_cell_info_type_1_5 {
 
 /* Cast guint8 RadioCellIdentity_1_5.cellIdentityType to this. */
 typedef enum radio_cell_identity_type_1_5 {
-    RADIO_CELL_IDENTITY_1_5_GSM = 0,
+    RADIO_CELL_IDENTITY_1_5_NONE = 0,
+    RADIO_CELL_IDENTITY_1_5_GSM,
     RADIO_CELL_IDENTITY_1_5_WCDMA,
     RADIO_CELL_IDENTITY_1_5_TD_SCDMA,
     RADIO_CELL_IDENTITY_1_5_CDMA,
@@ -1360,6 +1368,12 @@ typedef struct radio_app_status {
     RADIO_PIN_STATE pin2 RADIO_ALIGNED(4);
 } RADIO_ALIGNED(8) RadioAppStatus;
 G_STATIC_ASSERT(sizeof(RadioAppStatus) == 64);
+
+typedef struct radio_app_status_1_5 {
+    RadioAppStatus base RADIO_ALIGNED(8);
+    RADIO_PERSO_SUBSTATE persoSubstate RADIO_ALIGNED(4);
+} RADIO_ALIGNED(8) RadioAppStatus_1_5; /* Since 1.5.5 */
+G_STATIC_ASSERT(sizeof(RadioAppStatus_1_5) == 72);
 
 typedef struct radio_uus_info {
     gint32 uusType RADIO_ALIGNED(4);
