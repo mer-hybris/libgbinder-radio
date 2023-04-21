@@ -1,3 +1,9 @@
+libgbinder-radio (1.5.6) unstable; urgency=medium
+
+  * Fix version in Makefile
+
+ -- Matti Lehtimäki <matti.lehtimaki@jolla.com>  Fri, 21 Apr 2023 14:55:38 +0300
+
 libgbinder-radio (1.5.5) unstable; urgency=medium
 
   * Fix RADIO_CELL_IDENTITY_TYPE_1_5 enum values
