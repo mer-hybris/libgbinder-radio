@@ -66,6 +66,12 @@ typedef enum radio_interface {
     RADIO_INTERFACE_COUNT
 } RADIO_INTERFACE; /* Since 1.2.0 */
 
+typedef enum radio_interface_type {
+    RADIO_INTERFACE_TYPE_NONE,
+    RADIO_INTERFACE_TYPE_HIDL,
+    RADIO_INTERFACE_TYPE_AIDL,
+} RADIO_INTERFACE_TYPE; /* Since 1.6.0 */
+
 typedef enum radio_observer_priority {
     RADIO_OBSERVER_PRIORITY_LOWEST,
     RADIO_OBSERVER_PRIORITY_DEFAULT = 2,

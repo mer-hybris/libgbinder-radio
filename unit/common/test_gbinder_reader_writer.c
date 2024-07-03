@@ -373,6 +373,24 @@ gbinder_reader_read_hidl_struct1(
     return NULL;
 }
 
+const void*
+gbinder_reader_read_parcelable(
+    GBinderReader* reader,
+    gsize* size)
+{
+    TestGBinderReader* self = test_gbinder_reader_cast(reader);
+    TestGBinderDataItem* item = self->item;
+
+    if (item && item->type == DATA_TYPE_BUFFER) {
+        if (size) {
+            *size = item->data.blob.size;
+        }
+        self->item = item->next;
+        return item->data.blob.buf;
+    }
+    return NULL;
+}
+
 GBinderRemoteObject*
 gbinder_reader_read_object(
     GBinderReader* reader)
