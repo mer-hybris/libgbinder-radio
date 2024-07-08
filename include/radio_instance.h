@@ -38,6 +38,7 @@
 #define RADIO_INSTANCE_H
 
 #include <radio_types.h>
+#include <radio_modem_types.h>
 
 #include <glib-object.h>
 
@@ -60,6 +61,9 @@ struct radio_instance {
     RADIO_INTERFACE version;
     /* Since 1.4.3 */
     gboolean connected; /* rilConnected received */
+    /* Since 1.6.0 */
+    RADIO_INTERFACE_TYPE interface_type;
+    RADIO_AIDL_INTERFACE interface_aidl;
 };
 
 /* These were introduced in 1.4.3 and then renamed in 1.4.6 */
@@ -155,6 +159,15 @@ radio_instance_new_with_modem_slot_and_version(
     const char* modem,
     int slot_index,
     RADIO_INTERFACE version); /* Since 1.2.1 */
+
+RadioInstance*
+radio_instance_new_with_modem_slot_version_and_interface(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot,
+    RADIO_INTERFACE version,
+    RADIO_AIDL_INTERFACE aidl_interface); /* Since 1.6.0 */
 
 RadioInstance*
 radio_instance_get(

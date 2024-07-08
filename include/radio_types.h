@@ -66,6 +66,18 @@ typedef enum radio_interface {
     RADIO_INTERFACE_COUNT
 } RADIO_INTERFACE; /* Since 1.2.0 */
 
+typedef enum radio_aidl_interface {
+    RADIO_AIDL_INTERFACE_NONE = -1,
+    // RADIO_DATA_INTERFACE,
+    // RADIO_IMS_INTERFACE,
+    // RADIO_MESSAGING_INTERFACE,
+    RADIO_MODEM_INTERFACE,
+    // RADIO_NETWORK_INTERFACE,
+    // RADIO_SIM_INTERFACE,
+    // RADIO_VOICE_INTERFACE,
+    RADIO_AIDL_INTERFACE_COUNT
+} RADIO_AIDL_INTERFACE; /* Since 1.6.0 */
+
 typedef enum radio_interface_type {
     RADIO_INTERFACE_TYPE_NONE,
     RADIO_INTERFACE_TYPE_HIDL,

@@ -180,7 +180,7 @@ radio_client_handle_resp(
     gpointer user_data)
 {
     if (!radio_base_handle_resp(RADIO_BASE(user_data), code, info, reader)) {
-        const char* name = radio_resp_name(code);
+        const char* name = radio_resp_name2(instance, code);
 
         /* Most likely this is a response to a cancelled request */
         GDEBUG("Ignoring IRadio response [%08x] %u %s", info->serial, code,
@@ -279,6 +279,13 @@ radio_client_interface(
     RadioClient* self)
 {
     return G_LIKELY(self) ? self->instance->version : RADIO_INTERFACE_NONE;
+}
+
+RADIO_AIDL_INTERFACE
+radio_client_aidl_interface(
+    RadioClient* self)
+{
+    return G_LIKELY(self) ? self->instance->interface_aidl : RADIO_AIDL_INTERFACE_NONE;
 }
 
 void

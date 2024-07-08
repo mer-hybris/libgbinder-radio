@@ -74,6 +74,10 @@ RADIO_INTERFACE
 radio_client_interface(
     RadioClient* client);
 
+RADIO_AIDL_INTERFACE
+radio_client_aidl_interface(
+    RadioClient* client); /* Since 1.6.0 */
+
 const char*
 radio_client_slot(
     RadioClient* client);
