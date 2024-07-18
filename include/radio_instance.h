@@ -39,6 +39,7 @@
 
 #include <radio_types.h>
 #include <radio_modem_types.h>
+#include <radio_sim_types.h>
 
 #include <glib-object.h>
 

@@ -101,6 +101,17 @@ radio_req_name2(
         case RADIO_MODEM_REQ_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_SIM_INTERFACE) {
+        switch ((RADIO_SIM_REQ)req) {
+#define RADIO_SIM_REQ_(req,resp,Name,NAME) \
+        case RADIO_SIM_REQ_##NAME: return #Name;
+        RADIO_SIM_CALL_1(RADIO_SIM_REQ_)
+#undef RADIO_SIM_REQ_
+        case RADIO_SIM_REQ_SET_RESPONSE_FUNCTIONS:   return "setResponseFunctions";
+        case RADIO_SIM_REQ_RESPONSE_ACKNOWLEDGEMENT: return "responseAcknowledgement";
+        case RADIO_SIM_REQ_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -171,6 +182,16 @@ radio_resp_name2(
         case RADIO_MODEM_RESP_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_SIM_INTERFACE) {
+        switch ((RADIO_SIM_RESP)resp) {
+        case RADIO_SIM_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
+#define RADIO_SIM_RESP_(req,resp,Name,NAME) \
+        case RADIO_SIM_RESP_##NAME: return #Name "Response";
+        RADIO_SIM_CALL_1(RADIO_SIM_RESP_)
+#undef RADIO_SIM_RESP_
+        case RADIO_SIM_RESP_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -207,6 +228,15 @@ radio_ind_name2(
         RADIO_MODEM_IND_1(RADIO_MODEM_IND_)
 #undef RADIO_MODEM_IND_
         case RADIO_MODEM_IND_ANY:
+            break;
+        }
+    } else if (instance->interface_aidl == RADIO_SIM_INTERFACE) {
+        switch ((RADIO_SIM_IND)ind) {
+#define RADIO_SIM_IND_(code,Name,NAME) \
+        case RADIO_SIM_IND_##NAME: return #Name;
+        RADIO_SIM_IND_1(RADIO_SIM_IND_)
+#undef RADIO_SIM_IND_
+        case RADIO_SIM_IND_ANY:
             break;
         }
     }
