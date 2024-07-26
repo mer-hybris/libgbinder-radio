@@ -90,6 +90,17 @@ radio_req_name2(
         case RADIO_REQ_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_DATA_INTERFACE) {
+        switch ((RADIO_DATA_REQ)req) {
+#define RADIO_DATA_REQ_(req,resp,Name,NAME) \
+        case RADIO_DATA_REQ_##NAME: return #Name;
+        RADIO_DATA_CALL_1(RADIO_DATA_REQ_)
+#undef RADIO_DATA_REQ_
+        case RADIO_DATA_REQ_SET_RESPONSE_FUNCTIONS:   return "setResponseFunctions";
+        case RADIO_DATA_REQ_RESPONSE_ACKNOWLEDGEMENT: return "responseAcknowledgement";
+        case RADIO_DATA_REQ_ANY:
+            break;
+        }
     } else if (instance->interface_aidl == RADIO_MODEM_INTERFACE) {
         switch ((RADIO_MODEM_REQ)req) {
 #define RADIO_MODEM_REQ_(req,resp,Name,NAME) \
@@ -183,6 +194,16 @@ radio_resp_name2(
         case RADIO_RESP_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_DATA_INTERFACE) {
+        switch ((RADIO_DATA_RESP)resp) {
+        case RADIO_DATA_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
+#define RADIO_DATA_RESP_(req,resp,Name,NAME) \
+        case RADIO_DATA_RESP_##NAME: return #Name "Response";
+        RADIO_DATA_CALL_1(RADIO_DATA_RESP_)
+#undef RADIO_DATA_RESP_
+        case RADIO_DATA_RESP_ANY:
+            break;
+        }
     } else if (instance->interface_aidl == RADIO_MODEM_INTERFACE) {
         switch ((RADIO_MODEM_RESP)resp) {
         case RADIO_MODEM_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
@@ -240,6 +261,15 @@ radio_ind_name2(
         RADIO_EVENT_1_5(RADIO_IND_)
 #undef RADIO_IND_
         case RADIO_IND_ANY:
+            break;
+        }
+    } else if (instance->interface_aidl == RADIO_DATA_INTERFACE) {
+        switch ((RADIO_DATA_IND)ind) {
+#define RADIO_DATA_IND_(code,Name,NAME) \
+        case RADIO_DATA_IND_##NAME: return #Name;
+        RADIO_DATA_IND_1(RADIO_DATA_IND_)
+#undef RADIO_DATA_IND_
+        case RADIO_DATA_IND_ANY:
             break;
         }
     } else if (instance->interface_aidl == RADIO_MODEM_INTERFACE) {
