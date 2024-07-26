@@ -101,6 +101,17 @@ radio_req_name2(
         case RADIO_MODEM_REQ_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_NETWORK_INTERFACE) {
+        switch ((RADIO_NETWORK_REQ)req) {
+#define RADIO_NETWORK_REQ_(req,resp,Name,NAME) \
+        case RADIO_NETWORK_REQ_##NAME: return #Name;
+        RADIO_NETWORK_CALL_1(RADIO_NETWORK_REQ_)
+#undef RADIO_NETWORK_REQ_
+        case RADIO_NETWORK_REQ_SET_RESPONSE_FUNCTIONS:   return "setResponseFunctions";
+        case RADIO_NETWORK_REQ_RESPONSE_ACKNOWLEDGEMENT: return "responseAcknowledgement";
+        case RADIO_NETWORK_REQ_ANY:
+            break;
+        }
     } else if (instance->interface_aidl == RADIO_SIM_INTERFACE) {
         switch ((RADIO_SIM_REQ)req) {
 #define RADIO_SIM_REQ_(req,resp,Name,NAME) \
@@ -182,6 +193,16 @@ radio_resp_name2(
         case RADIO_MODEM_RESP_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_NETWORK_INTERFACE) {
+        switch ((RADIO_NETWORK_RESP)resp) {
+        case RADIO_NETWORK_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
+#define RADIO_NETWORK_RESP_(req,resp,Name,NAME) \
+        case RADIO_NETWORK_RESP_##NAME: return #Name "Response";
+        RADIO_NETWORK_CALL_1(RADIO_NETWORK_RESP_)
+#undef RADIO_NETWORK_RESP_
+        case RADIO_NETWORK_RESP_ANY:
+            break;
+        }
     } else if (instance->interface_aidl == RADIO_SIM_INTERFACE) {
         switch ((RADIO_SIM_RESP)resp) {
         case RADIO_SIM_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
@@ -228,6 +249,15 @@ radio_ind_name2(
         RADIO_MODEM_IND_1(RADIO_MODEM_IND_)
 #undef RADIO_MODEM_IND_
         case RADIO_MODEM_IND_ANY:
+            break;
+        }
+    } else if (instance->interface_aidl == RADIO_NETWORK_INTERFACE) {
+        switch ((RADIO_NETWORK_IND)ind) {
+#define RADIO_NETWORK_IND_(code,Name,NAME) \
+        case RADIO_NETWORK_IND_##NAME: return #Name;
+        RADIO_NETWORK_IND_1(RADIO_NETWORK_IND_)
+#undef RADIO_NETWORK_IND_
+        case RADIO_NETWORK_IND_ANY:
             break;
         }
     } else if (instance->interface_aidl == RADIO_SIM_INTERFACE) {
