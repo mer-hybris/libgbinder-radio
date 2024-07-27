@@ -145,6 +145,18 @@ radio_req_name2(
         case RADIO_SIM_REQ_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_VOICE_INTERFACE) {
+        switch ((RADIO_VOICE_REQ)req) {
+#define RADIO_VOICE_REQ_(req,resp,Name,NAME) \
+        case RADIO_VOICE_REQ_##NAME: return #Name;
+        RADIO_VOICE_CALL_1(RADIO_VOICE_REQ_)
+#undef RADIO_VOICE_REQ_
+        case RADIO_VOICE_REQ_HANGUP:                   return "hangup";
+        case RADIO_VOICE_REQ_SET_RESPONSE_FUNCTIONS:   return "setResponseFunctions";
+        case RADIO_VOICE_REQ_RESPONSE_ACKNOWLEDGEMENT: return "responseAcknowledgement";
+        case RADIO_VOICE_REQ_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -255,6 +267,17 @@ radio_resp_name2(
         case RADIO_SIM_RESP_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_VOICE_INTERFACE) {
+        switch ((RADIO_VOICE_RESP)resp) {
+        case RADIO_VOICE_RESP_ACKNOWLEDGE_REQUEST:        return "acknowledgeRequest";
+        case RADIO_VOICE_RESP_HANGUP_CONNECTION_RESPONSE: return "hangupConnectionResponse";
+#define RADIO_VOICE_RESP_(req,resp,Name,NAME) \
+        case RADIO_VOICE_RESP_##NAME: return #Name "Response";
+        RADIO_VOICE_CALL_1(RADIO_VOICE_RESP_)
+#undef RADIO_VOICE_RESP_
+        case RADIO_VOICE_RESP_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -327,6 +350,15 @@ radio_ind_name2(
         RADIO_SIM_IND_1(RADIO_SIM_IND_)
 #undef RADIO_SIM_IND_
         case RADIO_SIM_IND_ANY:
+            break;
+        }
+    } else if (instance->interface_aidl == RADIO_VOICE_INTERFACE) {
+        switch ((RADIO_VOICE_IND)ind) {
+#define RADIO_VOICE_IND_(code,Name,NAME) \
+        case RADIO_VOICE_IND_##NAME: return #Name;
+        RADIO_VOICE_IND_1(RADIO_VOICE_IND_)
+#undef RADIO_VOICE_IND_
+        case RADIO_VOICE_IND_ANY:
             break;
         }
     }

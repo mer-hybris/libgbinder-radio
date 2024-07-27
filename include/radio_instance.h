@@ -43,6 +43,7 @@
 #include <radio_modem_types.h>
 #include <radio_network_types.h>
 #include <radio_sim_types.h>
+#include <radio_voice_types.h>
 
 #include <glib-object.h>
 
