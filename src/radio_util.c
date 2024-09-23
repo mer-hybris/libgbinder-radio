@@ -101,6 +101,16 @@ radio_req_name2(
         case RADIO_DATA_REQ_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_IMS_INTERFACE) {
+        switch ((RADIO_IMS_REQ)req) {
+#define RADIO_IMS_REQ_(req,resp,Name,NAME) \
+        case RADIO_IMS_REQ_##NAME: return #Name;
+        RADIO_IMS_CALL_1(RADIO_IMS_REQ_)
+#undef RADIO_IMS_REQ_
+        case RADIO_IMS_REQ_SET_RESPONSE_FUNCTIONS:   return "setResponseFunctions";
+        case RADIO_IMS_REQ_ANY:
+            break;
+        }
     } else if (instance->interface_aidl == RADIO_MESSAGING_INTERFACE) {
         switch ((RADIO_MESSAGING_REQ)req) {
 #define RADIO_MESSAGING_REQ_(req,resp,Name,NAME) \
@@ -227,6 +237,15 @@ radio_resp_name2(
         case RADIO_DATA_RESP_ANY:
             break;
         }
+    } else if (instance->interface_aidl == RADIO_IMS_INTERFACE) {
+        switch ((RADIO_IMS_RESP)resp) {
+#define RADIO_IMS_RESP_(req,resp,Name,NAME) \
+        case RADIO_IMS_RESP_##NAME: return #Name "Response";
+        RADIO_IMS_CALL_1(RADIO_IMS_RESP_)
+#undef RADIO_IMS_RESP_
+        case RADIO_IMS_RESP_ANY:
+            break;
+        }
     } else if (instance->interface_aidl == RADIO_MESSAGING_INTERFACE) {
         switch ((RADIO_MESSAGING_RESP)resp) {
         case RADIO_MESSAGING_RESP_ACKNOWLEDGE_REQUEST: return "acknowledgeRequest";
@@ -314,6 +333,15 @@ radio_ind_name2(
         RADIO_DATA_IND_1(RADIO_DATA_IND_)
 #undef RADIO_DATA_IND_
         case RADIO_DATA_IND_ANY:
+            break;
+        }
+    } else if (instance->interface_aidl == RADIO_IMS_INTERFACE) {
+        switch ((RADIO_IMS_IND)ind) {
+#define RADIO_IMS_IND_(code,Name,NAME) \
+        case RADIO_IMS_IND_##NAME: return #Name;
+        RADIO_IMS_IND_1(RADIO_IMS_IND_)
+#undef RADIO_IMS_IND_
+        case RADIO_IMS_IND_ANY:
             break;
         }
     } else if (instance->interface_aidl == RADIO_MESSAGING_INTERFACE) {

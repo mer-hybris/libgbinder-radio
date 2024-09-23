@@ -39,6 +39,7 @@
 
 #include <radio_types.h>
 #include <radio_data_types.h>
+#include <radio_ims_types.h>
 #include <radio_messaging_types.h>
 #include <radio_modem_types.h>
 #include <radio_network_types.h>
