@@ -1,3 +1,16 @@
+libgbinder-radio (1.6.0) unstable; urgency=medium
+
+  * Implement support for AIDL IRadioIms
+  * Implement support for AIDL IRadioVoice
+  * Implement support for AIDL IRadioMessaging
+  * Implement support for AIDL IRadioData
+  * Implement support for AIDL IRadioNetwork
+  * Implement support for AIDL IRadioSim
+  * Implement support for AIDL IRadioModem
+  * Implement support for AIDL IRadioConfig
+
+ -- Matti Lehtimäki <matti.lehtimaki@jolla.com>  Thu, 26 Sep 2024 14:03:30 +0300
+
 libgbinder-radio (1.5.6) unstable; urgency=medium
 
   * Fix version in Makefile
