@@ -40,6 +40,7 @@
 /* This API exists since 1.4.6 */
 
 #include <radio_config_types.h>
+#include <radio_config_aidl_types.h>
 
 G_BEGIN_DECLS
 
@@ -84,6 +85,12 @@ radio_config_new_with_version(
     G_GNUC_WARN_UNUSED_RESULT;
 
 RadioConfig*
+radio_config_new_with_version_and_interface_type(
+    RADIO_CONFIG_INTERFACE max_version,
+    RADIO_INTERFACE_TYPE interface_type)
+    G_GNUC_WARN_UNUSED_RESULT; /* Since 1.6.0 */
+
+RadioConfig*
 radio_config_ref(
     RadioConfig* config);
 
@@ -94,6 +101,10 @@ radio_config_unref(
 gboolean
 radio_config_dead(
     RadioConfig* config);
+
+RADIO_INTERFACE_TYPE
+radio_config_interface_type(
+    RadioConfig* self); /* Since 1.6.0 */
 
 RADIO_CONFIG_INTERFACE
 radio_config_interface(

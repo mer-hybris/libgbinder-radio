@@ -156,17 +156,22 @@ G_STATIC_ASSERT(G_N_ELEMENTS(radio_response_ifaces) == RADIO_INTERFACE_COUNT + 1
 
 typedef struct radio_interface_desc {
     RADIO_INTERFACE version;
+    RADIO_AIDL_INTERFACE aidl_interface;
     const char* radio_iface;
     const char* const* ind_ifaces;
     const char* const* resp_ifaces;
+    gint32 set_response_functions_req;
 } RadioInterfaceDesc;
 
 #define RADIO_INTERFACE_INDEX(x) (RADIO_INTERFACE_COUNT - x - 1)
 
 #define RADIO_INTERFACE_DESC(v) \
-        RADIO_INTERFACE_##v, RADIO_##v, \
+        RADIO_INTERFACE_##v, \
+        RADIO_AIDL_INTERFACE_NONE, \
+        RADIO_##v, \
         radio_indication_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
-        radio_response_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v)
+        radio_response_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
+        RADIO_REQ_SET_RESPONSE_FUNCTIONS
 
 static const RadioInterfaceDesc radio_interfaces[] = {
    { RADIO_INTERFACE_DESC(1_5) },
@@ -177,6 +182,146 @@ static const RadioInterfaceDesc radio_interfaces[] = {
    { RADIO_INTERFACE_DESC(1_0) }
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_interfaces) == RADIO_INTERFACE_COUNT);
+
+static const GBinderClientIfaceInfo radio_aidl_iface_info[] = {
+    {RADIO_DATA, RADIO_DATA_1_REQ_LAST},
+    {RADIO_IMS, RADIO_IMS_1_REQ_LAST},
+    {RADIO_MESSAGING, RADIO_MESSAGING_1_REQ_LAST},
+    {RADIO_MODEM, RADIO_MODEM_1_REQ_LAST},
+    {RADIO_NETWORK, RADIO_NETWORK_1_REQ_LAST},
+    {RADIO_SIM, RADIO_SIM_1_REQ_LAST},
+    {RADIO_VOICE, RADIO_VOICE_1_REQ_LAST},
+};
+
+static const char* const radio_data_indication_ifaces[] = {
+    RADIO_DATA_INDICATION,
+    NULL
+};
+
+static const char* const radio_data_response_ifaces[] = {
+    RADIO_DATA_RESPONSE,
+    NULL
+};
+
+static const char* const radio_ims_indication_ifaces[] = {
+    RADIO_IMS_INDICATION,
+    NULL
+};
+
+static const char* const radio_ims_response_ifaces[] = {
+    RADIO_IMS_RESPONSE,
+    NULL
+};
+
+static const char* const radio_messaging_indication_ifaces[] = {
+    RADIO_MESSAGING_INDICATION,
+    NULL
+};
+
+static const char* const radio_messaging_response_ifaces[] = {
+    RADIO_MESSAGING_RESPONSE,
+    NULL
+};
+
+static const char* const radio_modem_indication_ifaces[] = {
+    RADIO_MODEM_INDICATION,
+    NULL
+};
+
+static const char* const radio_modem_response_ifaces[] = {
+    RADIO_MODEM_RESPONSE,
+    NULL
+};
+
+static const char* const radio_network_indication_ifaces[] = {
+    RADIO_NETWORK_INDICATION,
+    NULL
+};
+
+static const char* const radio_network_response_ifaces[] = {
+    RADIO_NETWORK_RESPONSE,
+    NULL
+};
+
+static const char* const radio_sim_indication_ifaces[] = {
+    RADIO_SIM_INDICATION,
+    NULL
+};
+
+static const char* const radio_sim_response_ifaces[] = {
+    RADIO_SIM_RESPONSE,
+    NULL
+};
+
+static const char* const radio_voice_indication_ifaces[] = {
+    RADIO_VOICE_INDICATION,
+    NULL
+};
+
+static const char* const radio_voice_response_ifaces[] = {
+    RADIO_VOICE_RESPONSE,
+    NULL
+};
+
+static const RadioInterfaceDesc radio_aidl_interfaces[] = {
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_DATA_INTERFACE,
+        RADIO_DATA,
+        radio_data_indication_ifaces,
+        radio_data_response_ifaces,
+        RADIO_DATA_REQ_SET_RESPONSE_FUNCTIONS,
+    },
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_IMS_INTERFACE,
+        RADIO_IMS,
+        radio_ims_indication_ifaces,
+        radio_ims_response_ifaces,
+        RADIO_IMS_REQ_SET_RESPONSE_FUNCTIONS,
+    },
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_MESSAGING_INTERFACE,
+        RADIO_MESSAGING,
+        radio_messaging_indication_ifaces,
+        radio_messaging_response_ifaces,
+        RADIO_MESSAGING_REQ_SET_RESPONSE_FUNCTIONS,
+    },
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_MODEM_INTERFACE,
+        RADIO_MODEM,
+        radio_modem_indication_ifaces,
+        radio_modem_response_ifaces,
+        RADIO_MODEM_REQ_SET_RESPONSE_FUNCTIONS,
+    },
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_NETWORK_INTERFACE,
+        RADIO_NETWORK,
+        radio_network_indication_ifaces,
+        radio_network_response_ifaces,
+        RADIO_NETWORK_REQ_SET_RESPONSE_FUNCTIONS,
+    },
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_SIM_INTERFACE,
+        RADIO_SIM,
+        radio_sim_indication_ifaces,
+        radio_sim_response_ifaces,
+        RADIO_SIM_REQ_SET_RESPONSE_FUNCTIONS,
+    },
+    {
+        RADIO_INTERFACE_NONE,
+        RADIO_VOICE_INTERFACE,
+        RADIO_VOICE,
+        radio_voice_indication_ifaces,
+        radio_voice_response_ifaces,
+        RADIO_VOICE_REQ_SET_RESPONSE_FUNCTIONS,
+    }
+};
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_aidl_interfaces) == RADIO_AIDL_INTERFACE_COUNT);
 
 typedef struct radio_instance_tx {
     RadioInstance* instance;
@@ -205,7 +350,7 @@ radio_instance_req_quark(
 
         q = GPOINTER_TO_UINT(g_hash_table_lookup(priv->req_quarks, key));
         if (!q) {
-            const char* known = radio_req_name(req);
+            const char* known = radio_req_name2(self, req);
 
             if (known) {
                 q = g_quark_from_static_string(known);
@@ -232,7 +377,7 @@ radio_instance_resp_quark(
 
         q = GPOINTER_TO_UINT(g_hash_table_lookup(priv->resp_quarks, key));
         if (!q) {
-            const char* known = radio_resp_name(resp);
+            const char* known = radio_resp_name2(self, resp);
 
             if (known) {
                 q = g_quark_from_static_string(known);
@@ -280,7 +425,14 @@ radio_instance_indication(
     RadioInstance* self = RADIO_INSTANCE(user_data);
     const char* iface = gbinder_remote_request_interface(req);
 
-    if (gutil_strv_contains((const GStrV*)radio_indication_ifaces, iface)) {
+    if (gutil_strv_contains((const GStrV*)radio_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_data_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_ims_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_messaging_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_modem_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_network_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_sim_indication_ifaces, iface)
+        || gutil_strv_contains((const GStrV*)radio_voice_indication_ifaces, iface)) {
         GBinderReader reader;
         guint type;
 
@@ -294,6 +446,7 @@ radio_instance_indication(
                 SIGNAL_OBSERVE_INDICATION_0;
             int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
             gboolean handled = FALSE;
+            guint ind_ril_connected = 0;
 
             /* High-priority observers are notified first */
             for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
@@ -305,7 +458,14 @@ radio_instance_indication(
             }
 
             /* rilConnected is a special case */
-            if (code == RADIO_IND_RIL_CONNECTED) {
+            if (self->interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+                ind_ril_connected = RADIO_IND_RIL_CONNECTED;
+            } else if (self->interface_type == RADIO_INTERFACE_TYPE_AIDL
+                && gutil_strv_contains((const GStrV*)radio_modem_indication_ifaces, iface)) {
+                ind_ril_connected = RADIO_MODEM_IND_RIL_CONNECTED;
+            }
+
+            if (ind_ril_connected && code == ind_ril_connected) {
                 if (G_UNLIKELY(self->connected)) {
                     /* We are only supposed to receive it once */
                     GWARN("%s received unexpected rilConnected", self->slot);
@@ -360,69 +520,126 @@ radio_instance_response(
 {
     RadioInstance* self = RADIO_INSTANCE(user_data);
     const char* iface = gbinder_remote_request_interface(req);
+    const RadioResponseInfo* info = NULL;
+    GBinderReader reader;
+    gint32 ack_serial = 0;
+
+    gbinder_remote_request_init_reader(req, &reader);
 
     if (gutil_strv_contains((const GStrV*)radio_response_ifaces, iface)) {
-        GBinderReader reader;
-
-        /* All these should be one-way transactions */
-        GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
-        gbinder_remote_request_init_reader(req, &reader);
         if (code == RADIO_RESP_ACKNOWLEDGE_REQUEST) {
-            /* oneway acknowledgeRequest(int32_t serial) */
-            gint32 serial;
-
-            GDEBUG("%s %u acknowledgeRequest", iface, code);
-            if (gbinder_reader_read_int32(&reader, &serial)) {
-                g_signal_emit(self, radio_instance_signals[SIGNAL_ACK], 0,
-                    serial);
-            }
+            gbinder_reader_read_int32(&reader, &ack_serial);
         } else {
             /* All other responses have RadioResponseInfo */
-            const RadioResponseInfo* info =
-                gbinder_reader_read_hidl_struct(&reader, RadioResponseInfo);
-
-            if (info) {
-                const GQuark quark = radio_instance_resp_quark(self, code);
-                const guint* signals = radio_instance_signals +
-                    SIGNAL_OBSERVE_RESPONSE_0;
-                int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
-                gboolean handled = FALSE;
-
-                /* High-priority observers are notified first */
-                for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
-                    if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
-                        g_signal_emit(self, signals
-                            [RADIO_OBSERVER_PRIORITY_INDEX(p)],
-                            quark, code, info, &reader);
-                    }
-                }
-
-                /* Then handlers */
-                g_signal_emit(self, radio_instance_signals
-                    [SIGNAL_HANDLE_RESPONSE],
-                    quark, code, info, &reader, &handled);
-
-                /* And then remaining observers in their priority order */
-                for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
-                    if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
-                        g_signal_emit(self, signals
-                            [RADIO_OBSERVER_PRIORITY_INDEX(p)],
-                            quark, code, info, &reader);
-                    }
-                }
-
-                /* Ack unhandled responses */
-                if (info->type == RADIO_RESP_SOLICITED_ACK_EXP && !handled) {
-                    GDEBUG("ack unhandled response");
-                    radio_instance_ack(self);
-                }
-            }
+            info = gbinder_reader_read_hidl_struct(&reader, RadioResponseInfo);
         }
-        *status = GBINDER_STATUS_OK;
+    } else if (gutil_strv_contains((const GStrV*)radio_data_response_ifaces, iface)) {
+        if (code == RADIO_DATA_RESP_ACKNOWLEDGE_REQUEST) {
+            gbinder_reader_read_int32(&reader, &ack_serial);
+        } else {
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
+    } else if (gutil_strv_contains((const GStrV*)radio_ims_response_ifaces, iface)) {
+        {
+            /* RadioResponseInfo has the same fields/padding between HIDL and AIDL */
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
+    } else if (gutil_strv_contains((const GStrV*)radio_messaging_response_ifaces, iface)) {
+        if (code == RADIO_MESSAGING_RESP_ACKNOWLEDGE_REQUEST) {
+            gbinder_reader_read_int32(&reader, &ack_serial);
+        } else {
+            /* RadioResponseInfo has the same fields/padding between HIDL and AIDL */
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
+    } else if (gutil_strv_contains((const GStrV*)radio_modem_response_ifaces, iface)) {
+        if (code == RADIO_MODEM_RESP_ACKNOWLEDGE_REQUEST) {
+            gbinder_reader_read_int32(&reader, &ack_serial);
+        } else {
+            /* RadioResponseInfo has the same fields/padding between HIDL and AIDL */
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
+    } else if (gutil_strv_contains((const GStrV*)radio_network_response_ifaces, iface)) {
+        if (code == RADIO_NETWORK_RESP_ACKNOWLEDGE_REQUEST) {
+            gbinder_reader_read_int32(&reader, &ack_serial);
+        } else {
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
+    } else if (gutil_strv_contains((const GStrV*)radio_sim_response_ifaces, iface)) {
+        if (code == RADIO_SIM_RESP_ACKNOWLEDGE_REQUEST) {
+            gbinder_reader_read_int32(&reader, &ack_serial);
+        } else {
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
+    } else if (gutil_strv_contains((const GStrV*)radio_voice_response_ifaces, iface)) {
+        if (code == RADIO_VOICE_RESP_ACKNOWLEDGE_REQUEST) {
+            gbinder_reader_read_int32(&reader, &ack_serial);
+        } else {
+            gsize out_size;
+            info = gbinder_reader_read_parcelable(&reader, &out_size);
+            GASSERT(out_size >= sizeof(RadioResponseInfo));
+        }
     } else {
         GWARN("Unexpected response %s %u", iface, code);
         *status = GBINDER_STATUS_FAILED;
+        return NULL;
     }
+
+    /* All these should be one-way transactions */
+    GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
+
+    if (ack_serial) {
+        GDEBUG("%s %u acknowledgeRequest", iface, code);
+        g_signal_emit(self, radio_instance_signals[SIGNAL_ACK], 0,
+            ack_serial);
+    } else if (info) {
+        const GQuark quark = radio_instance_resp_quark(self, code);
+        const guint* signals = radio_instance_signals +
+            SIGNAL_OBSERVE_RESPONSE_0;
+        int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
+        gboolean handled = FALSE;
+
+        /* High-priority observers are notified first */
+        for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
+            if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
+                g_signal_emit(self, signals
+                    [RADIO_OBSERVER_PRIORITY_INDEX(p)],
+                    quark, code, info, &reader);
+            }
+        }
+
+        /* Then handlers */
+        g_signal_emit(self, radio_instance_signals
+            [SIGNAL_HANDLE_RESPONSE],
+            quark, code, info, &reader, &handled);
+
+        /* And then remaining observers in their priority order */
+        for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
+            if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
+                g_signal_emit(self, signals
+                    [RADIO_OBSERVER_PRIORITY_INDEX(p)],
+                    quark, code, info, &reader);
+            }
+        }
+
+        /* Ack unhandled responses */
+        if (info->type == RADIO_RESP_SOLICITED_ACK_EXP && !handled) {
+            GDEBUG("ack unhandled response");
+            radio_instance_ack(self);
+        }
+    }
+    *status = GBINDER_STATUS_OK;
     return NULL;
 }
 
@@ -520,10 +737,9 @@ radio_instance_create_version(
     self->modem = priv->modem = g_strdup(modem);
     self->slot_index = slot_index;
     self->version = desc->version;
+    self->interface_aidl = desc->aidl_interface;
 
     priv->remote = gbinder_remote_object_ref(remote);
-    priv->client = gbinder_client_new2(remote,
-        radio_iface_info, G_N_ELEMENTS(radio_iface_info));
     priv->indication = gbinder_servicemanager_new_local_object2(sm,
         desc->ind_ifaces, radio_instance_indication, self);
     priv->response = gbinder_servicemanager_new_local_object2(sm,
@@ -531,14 +747,27 @@ radio_instance_create_version(
     priv->death_id = gbinder_remote_object_add_death_handler(remote,
         radio_instance_died, self);
 
+    if (desc->version != RADIO_INTERFACE_NONE) {
+        self->interface_type = RADIO_INTERFACE_TYPE_HIDL;
+        priv->client = gbinder_client_new2(remote,
+            radio_iface_info, G_N_ELEMENTS(radio_iface_info));
+    } else if (desc->aidl_interface != RADIO_AIDL_INTERFACE_NONE) {
+        self->interface_type = RADIO_INTERFACE_TYPE_AIDL;
+        priv->client = gbinder_client_new2(remote,
+            radio_aidl_iface_info + desc->aidl_interface, 1);
+
+        gbinder_local_object_set_stability(priv->indication, GBINDER_STABILITY_VINTF);
+        gbinder_local_object_set_stability(priv->response, GBINDER_STABILITY_VINTF);
+    }
+
     /* IRadio::setResponseFunctions */
     req = gbinder_client_new_request2(priv->client,
-        RADIO_REQ_SET_RESPONSE_FUNCTIONS);
+        desc->set_response_functions_req);
     gbinder_local_request_init_writer(req, &writer);
     gbinder_writer_append_local_object(&writer, priv->response);
     gbinder_writer_append_local_object(&writer, priv->indication);
     gbinder_remote_reply_unref(gbinder_client_transact_sync_reply(priv->client,
-        RADIO_REQ_SET_RESPONSE_FUNCTIONS, req, &status));
+        desc->set_response_functions_req, req, &status));
     GVERBOSE_("setResponseFunctions %s status %d", slot, status);
     gbinder_local_request_unref(req);
 
@@ -561,32 +790,47 @@ radio_instance_create(
     const char* key,
     const char* modem,
     int slot_index,
-    RADIO_INTERFACE max_version)
+    RADIO_INTERFACE max_version,
+    RADIO_AIDL_INTERFACE aidl_interface)
 {
     RadioInstance* self = NULL;
     GBinderServiceManager* sm = gbinder_servicemanager_new(dev);
+    const RadioInterfaceDesc* interfaces = NULL;
+    gsize num_interfaces = 0;
 
-    if (sm) {
-        guint i;
-
-        for (i = 0; i < G_N_ELEMENTS(radio_interfaces) && !self; i++) {
-            const RadioInterfaceDesc* desc = radio_interfaces + i;
-
-            if (desc->version <= max_version) {
-                char* fqname = g_strconcat(desc->radio_iface, "/", slot, NULL);
-                GBinderRemoteObject* obj = /* autoreleased */
-                    gbinder_servicemanager_get_service_sync(sm, fqname, NULL);
-
-                if (obj) {
-                    GINFO("Connected to %s", fqname);
-                    self = radio_instance_create_version(sm, obj, dev, slot,
-                        key, modem, slot_index, desc);
-                }
-                g_free(fqname);
-            }
-        }
-        gbinder_servicemanager_unref(sm);
+    if (!sm) {
+        GERR_("Failed to get ServiceManager on %s", dev);
+        return NULL;
     }
+
+    if (aidl_interface == RADIO_AIDL_INTERFACE_NONE) {
+        interfaces = radio_interfaces;
+        num_interfaces = G_N_ELEMENTS(radio_interfaces);
+    } else if (aidl_interface > RADIO_AIDL_INTERFACE_NONE
+                && aidl_interface < RADIO_AIDL_INTERFACE_COUNT) {
+        interfaces = radio_aidl_interfaces + aidl_interface;
+        num_interfaces = 1;
+    }
+
+    for (guint i = 0; i < num_interfaces && !self; i++) {
+        const RadioInterfaceDesc* desc = interfaces + i;
+
+        if (desc->version <= max_version) {
+            char* fqname = g_strconcat(desc->radio_iface, "/", slot, NULL);
+            GBinderRemoteObject* obj = /* autoreleased */
+                gbinder_servicemanager_get_service_sync(sm, fqname, NULL);
+
+            if (obj) {
+                GINFO("Connected to %s", fqname);
+                self = radio_instance_create_version(sm, obj, dev, slot,
+                    key, modem, slot_index, desc);
+            }
+            g_free(fqname);
+        }
+    }
+
+    gbinder_servicemanager_unref(sm);
+
     return self;
 }
 
@@ -595,9 +839,10 @@ char*
 radio_instance_make_key(
     const char* dev,
     const char* name,
-    RADIO_INTERFACE version)
+    RADIO_INTERFACE version,
+    RADIO_AIDL_INTERFACE aidl_interface)
 {
-    return g_strdup_printf("%s:%s:%d", dev, name, version);
+    return g_strdup_printf("%s:%s:%d:%d", dev, name, version, aidl_interface);
 }
 
 static
@@ -705,7 +950,7 @@ radio_instance_ind_quark(
 
         q = GPOINTER_TO_UINT(g_hash_table_lookup(priv->ind_quarks, key));
         if (!q) {
-            const char* known = radio_ind_name(ind);
+            const char* known = radio_ind_name2(self, ind);
 
             if (known) {
                 q = g_quark_from_static_string(known);
@@ -776,8 +1021,22 @@ radio_instance_new_with_modem_slot_and_version(
     int slot,
     RADIO_INTERFACE version) /* Since 1.2.1 */
 {
+    return radio_instance_new_with_modem_slot_version_and_interface(
+        dev, name, modem, slot, version, RADIO_AIDL_INTERFACE_NONE);
+}
+
+RadioInstance*
+radio_instance_new_with_modem_slot_version_and_interface(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot,
+    RADIO_INTERFACE version,
+    RADIO_AIDL_INTERFACE aidl_interface) /* Since 1.6.0 */
+{
     if (dev && dev[0] && name && name[0]) {
-        char* key = radio_instance_make_key(dev, name, version);
+        /* HIDL and AIDL would use different binder devices */
+        char* key = radio_instance_make_key(dev, name, version, aidl_interface);
         RadioInstance* self = NULL;
 
         if (radio_instance_table) {
@@ -787,7 +1046,8 @@ radio_instance_new_with_modem_slot_and_version(
             g_free(key);
             return radio_instance_ref(self);
         } else {
-            self = radio_instance_create(dev, name, key, modem, slot, version);
+            self = radio_instance_create(dev, name, key, modem, slot, version,
+                                         aidl_interface);
             if (self) {
                 if (!radio_instance_table) {
                     radio_instance_table = g_hash_table_new_full
@@ -830,7 +1090,7 @@ radio_instance_get_with_version(
     RadioInstance* self = NULL;
 
     if (dev && dev[0] && name && name[0] && radio_instance_table) {
-        char* key = radio_instance_make_key(dev, name, version);
+        char* key = radio_instance_make_key(dev, name, version, RADIO_AIDL_INTERFACE_NONE);
 
         self = g_hash_table_lookup(radio_instance_table, key);
         g_free(key);
@@ -905,7 +1165,7 @@ radio_instance_req_name(
     RadioInstance* self,
     RADIO_REQ req)
 {
-    const char* known = radio_req_name(req);
+    const char* known = radio_req_name2(self, req);
 
     if (known) {
         return known;
@@ -924,7 +1184,7 @@ radio_instance_resp_name(
     RadioInstance* self,
     RADIO_RESP resp)
 {
-    const char* known = radio_resp_name(resp);
+    const char* known = radio_resp_name2(self, resp);
 
     if (known) {
         return known;
@@ -943,7 +1203,7 @@ radio_instance_ind_name(
     RadioInstance* self,
     RADIO_IND ind)
 {
-    const char* known = radio_ind_name(ind);
+    const char* known = radio_ind_name2(self, ind);
 
     if (known) {
         return known;

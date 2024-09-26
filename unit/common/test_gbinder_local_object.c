@@ -43,6 +43,7 @@ struct gbinder_local_object {
     char** ifaces;
     GBinderLocalTransactFunc txproc;
     void* user_data;
+    GBINDER_STABILITY_LEVEL stability;
 };
 
 static const char hidl_base_interface[] = "android.hidl.base@1.0::IBase";
@@ -141,6 +142,16 @@ gbinder_local_object_drop(
         self->txproc = NULL;
         self->user_data = NULL;
         gbinder_local_object_unref(self);
+    }
+}
+
+void
+gbinder_local_object_set_stability(
+    GBinderLocalObject* self,
+    GBINDER_STABILITY_LEVEL stability)
+{
+    if (self) {
+        self->stability = stability;
     }
 }
 

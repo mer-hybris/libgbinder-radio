@@ -56,6 +56,7 @@ typedef struct radio_config {
     GBinderRemoteObject* remote;
     GBinderLocalObject* response;
     GBinderLocalObject* indication;
+    RADIO_INTERFACE_TYPE interface_type;
     RADIO_CONFIG_INTERFACE version;
     GHashTable* req_quarks;
     GHashTable* resp_quarks;
@@ -121,6 +122,12 @@ static const GBinderClientIfaceInfo radio_config_iface_info[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_iface_info) ==
     RADIO_CONFIG_INTERFACE_COUNT);
 
+static const GBinderClientIfaceInfo radio_config_aidl_iface_info[] = {
+    {RADIO_CONFIG_AIDL, RADIO_CONFIG_1_1_REQ_LAST }
+};
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_iface_info) ==
+    RADIO_CONFIG_AIDL_INTERFACE_COUNT);
+
 static const char* const radio_config_indication_ifaces[] = {
     RADIO_CONFIG_INDICATION_1_2,
     RADIO_CONFIG_INDICATION_1_1,
@@ -129,6 +136,13 @@ static const char* const radio_config_indication_ifaces[] = {
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_indication_ifaces) ==
     RADIO_CONFIG_INTERFACE_COUNT + 1);
+
+static const char* const radio_config_aidl_indication_ifaces[] = {
+    RADIO_CONFIG_AIDL_INDICATION,
+    NULL
+};
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_indication_ifaces) ==
+    RADIO_CONFIG_AIDL_INTERFACE_COUNT + 1);
 
 static const char* const radio_config_response_ifaces[] = {
     RADIO_CONFIG_RESPONSE_1_2,
@@ -139,7 +153,15 @@ static const char* const radio_config_response_ifaces[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_response_ifaces) ==
     RADIO_CONFIG_INTERFACE_COUNT + 1);
 
+static const char* const radio_config_aidl_response_ifaces[] = {
+    RADIO_CONFIG_AIDL_RESPONSE,
+    NULL
+};
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_response_ifaces) ==
+    RADIO_CONFIG_AIDL_INTERFACE_COUNT + 1);
+
 typedef struct radio_config_interface_desc {
+    RADIO_INTERFACE_TYPE interface_type;
     RADIO_CONFIG_INTERFACE version;
     const char* fqname;
     const char* radio_iface;
@@ -150,6 +172,7 @@ typedef struct radio_config_interface_desc {
 #define RADIO_CONFIG_INTERFACE_INDEX(x) (RADIO_CONFIG_INTERFACE_COUNT - x - 1)
 
 #define RADIO_CONFIG_INTERFACE_DESC(v) \
+        RADIO_INTERFACE_TYPE_HIDL, \
         RADIO_CONFIG_INTERFACE_##v, \
         RADIO_CONFIG_##v##_FQNAME, \
         RADIO_CONFIG_##v, \
@@ -166,8 +189,23 @@ static const RadioConfigInterfaceDesc radio_config_interfaces[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_interfaces) ==
     RADIO_CONFIG_INTERFACE_COUNT);
 
+static const RadioConfigInterfaceDesc radio_config_aidl_interfaces[] = {
+    {
+        RADIO_INTERFACE_TYPE_AIDL,
+        RADIO_CONFIG_AIDL_INTERFACE_1,
+        RADIO_CONFIG_AIDL_FQNAME,
+        RADIO_CONFIG_AIDL,
+        radio_config_aidl_indication_ifaces,
+        radio_config_aidl_response_ifaces,
+    }
+};
+G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_interfaces) ==
+    RADIO_CONFIG_AIDL_INTERFACE_COUNT);
+
 /* Must have a separate instance for each interface version */
 static RadioConfig* radio_config_instance[RADIO_CONFIG_INTERFACE_COUNT] =
+    { NULL };
+static RadioConfig* radio_config_aidl_instance[RADIO_CONFIG_AIDL_INTERFACE_COUNT] =
     { NULL };
 
 typedef struct radio_config_call {
@@ -205,18 +243,31 @@ radio_config_call_complete(
 static
 const char*
 radio_config_known_req_name(
+    RadioConfig* self,
     RADIO_CONFIG_REQ req)
 {
-    switch (req) {
-    case RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS: return "setResponseFunctions";
+    if (!G_LIKELY(self) || self->interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+        switch (req) {
+        case RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS: return "setResponseFunctions";
 #define RADIO_CONFIG_REQ_(req,resp,Name,NAME) \
-    case RADIO_CONFIG_REQ_##NAME: return #Name;
-    RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_REQ_)
-    RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_REQ_)
-    /* 1.2 defines no new requests */
+        case RADIO_CONFIG_REQ_##NAME: return #Name;
+        RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_REQ_)
+        RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_REQ_)
+        /* 1.2 defines no new requests */
 #undef RADIO_CONFIG_REQ_
-    case RADIO_CONFIG_REQ_ANY:
-        break;
+        case RADIO_CONFIG_REQ_ANY:
+            break;
+        }
+    } else if (self->interface_type == RADIO_INTERFACE_TYPE_AIDL) {
+        switch ((RADIO_CONFIG_AIDL_REQ)req) {
+        case RADIO_CONFIG_AIDL_REQ_SET_RESPONSE_FUNCTIONS: return "setResponseFunctions";
+#define RADIO_CONFIG_AIDL_REQ_(req,resp,Name,NAME) \
+        case RADIO_CONFIG_AIDL_REQ_##NAME: return #Name;
+        RADIO_CONFIG_AIDL_CALL_1(RADIO_CONFIG_AIDL_REQ_)
+#undef RADIO_CONFIG_AIDL_REQ_
+        case RADIO_CONFIG_AIDL_REQ_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -224,18 +275,30 @@ radio_config_known_req_name(
 static
 const char*
 radio_config_known_resp_name(
+    RadioConfig* self,
     RADIO_CONFIG_RESP resp)
 {
-    switch (resp) {
+    if (!G_LIKELY(self) || self->interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+        switch (resp) {
 #define RADIO_CONFIG_RESP_(req,resp,Name,NAME) \
-    case RADIO_CONFIG_RESP_##NAME: return #Name "Response";
-    RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_RESP_)
-    RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_RESP_)
+        case RADIO_CONFIG_RESP_##NAME: return #Name "Response";
+        RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_RESP_)
+        RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_RESP_)
 #undef RADIO_CONFIG_RESP_
-    case RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2:
-        return "getSimSlotsStatusResponse_1_2";
-    case RADIO_CONFIG_RESP_ANY:
-        break;
+        case RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2:
+            return "getSimSlotsStatusResponse_1_2";
+        case RADIO_CONFIG_RESP_ANY:
+            break;
+        }
+    } else if (self->interface_type == RADIO_INTERFACE_TYPE_AIDL) {
+        switch ((RADIO_CONFIG_AIDL_RESP)resp) {
+#define RADIO_CONFIG_AIDL_RESP_(req,resp,Name,NAME) \
+        case RADIO_CONFIG_AIDL_RESP_##NAME: return #Name "Response";
+        RADIO_CONFIG_AIDL_CALL_1(RADIO_CONFIG_AIDL_RESP_)
+#undef RADIO_CONFIG_AIDL_RESP_
+        case RADIO_CONFIG_AIDL_RESP_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -243,17 +306,29 @@ radio_config_known_resp_name(
 static
 const char*
 radio_config_known_ind_name(
+    RadioConfig* self,
     RADIO_CONFIG_IND ind)
 {
-    switch (ind) {
+    if (!G_LIKELY(self) || self->interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+        switch (ind) {
 #define RADIO_CONFIG_IND_(code,Name,NAME) \
-    case RADIO_CONFIG_IND_##NAME: return #Name;
-    RADIO_CONFIG_IND_1_0(RADIO_CONFIG_IND_)
-    /* 1.1 defines no new indications */
-    RADIO_CONFIG_IND_1_2(RADIO_CONFIG_IND_)
+        case RADIO_CONFIG_IND_##NAME: return #Name;
+        RADIO_CONFIG_IND_1_0(RADIO_CONFIG_IND_)
+        /* 1.1 defines no new indications */
+        RADIO_CONFIG_IND_1_2(RADIO_CONFIG_IND_)
 #undef RADIO_CONFIG_IND_
-    case RADIO_CONFIG_IND_ANY:
-        break;
+        case RADIO_CONFIG_IND_ANY:
+            break;
+        }
+    } else if (self->interface_type == RADIO_INTERFACE_TYPE_AIDL) {
+        switch ((RADIO_CONFIG_AIDL_IND)ind) {
+#define RADIO_CONFIG_AIDL_IND_(code,Name,NAME) \
+        case RADIO_CONFIG_AIDL_IND_##NAME: return #Name;
+        RADIO_CONFIG_AIDL_IND_1(RADIO_CONFIG_AIDL_IND_)
+#undef RADIO_CONFIG_AIDL_IND_
+        case RADIO_CONFIG_AIDL_IND_ANY:
+            break;
+        }
     }
     return NULL;
 }
@@ -271,7 +346,7 @@ radio_config_req_quark(
 
         q = GPOINTER_TO_UINT(g_hash_table_lookup(self->req_quarks, key));
         if (!q) {
-            const char* known = radio_config_known_req_name(req);
+            const char* known = radio_config_known_req_name(self, req);
 
             if (known) {
                 q = g_quark_from_static_string(known);
@@ -297,7 +372,7 @@ radio_config_resp_quark(
 
         q = GPOINTER_TO_UINT(g_hash_table_lookup(self->resp_quarks, key));
         if (!q) {
-            const char* known = radio_config_known_resp_name(resp);
+            const char* known = radio_config_known_resp_name(self, resp);
 
             if (known) {
                 q = g_quark_from_static_string(known);
@@ -323,7 +398,7 @@ radio_config_ind_quark(
 
         q = GPOINTER_TO_UINT(g_hash_table_lookup(self->ind_quarks, key));
         if (!q) {
-            const char* known = radio_config_known_ind_name(ind);
+            const char* known = radio_config_known_ind_name(self, ind);
 
             if (known) {
                 q = g_quark_from_static_string(known);
@@ -393,53 +468,64 @@ radio_config_response(
 {
     RadioConfig* self = THIS(user_data);
     const char* iface = gbinder_remote_request_interface(req);
+    const RadioResponseInfo* info = NULL;
+    GBinderReader args;
+
+    gbinder_remote_request_init_reader(req, &args);
 
     if (gutil_strv_contains((GStrV*)radio_config_response_ifaces, iface)) {
-        GBinderReader args;
-        const RadioResponseInfo* info;
-
         /* All responses must be one-way and have RadioResponseInfo */
-        gbinder_remote_request_init_reader(req, &args);
         info = gbinder_reader_read_hidl_struct(&args, RadioResponseInfo);
-        GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
-        if (info) {
-            int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
-            const GQuark quark = radio_config_resp_quark(self, code);
-            const guint* signals = radio_config_signals +
-                SIGNAL_OBSERVE_RESPONSE_0;
-
-            radio_config_ref(self);
-
-            /* High-priority observers get notified first */
-            for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
-                const int i = RADIO_OBSERVER_PRIORITY_INDEX(p);
-
-                if (signals[i]) {
-                    g_signal_emit(self, signals[i], quark, code, info, &args);
-                }
-            }
-
-            /* Then the response is actually processed */
-            if (!radio_base_handle_resp(&self->base, code, info, &args)) {
-                const char* name = radio_config_known_resp_name(code);
-
-                /* Most likely this is a response to a cancelled request */
-                GDEBUG("Ignoring IRadioConfig response [%08x] %u %s",
-                    info->serial, code, name ? name : "");
-            }
-
-            /* Followed by the remaining observers in their priority order */
-            for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
-                const int i = RADIO_OBSERVER_PRIORITY_INDEX(p);
-
-                if (signals[i]) {
-                    g_signal_emit(self, signals[i], quark, code, info, &args);
-                }
-            }
-            radio_config_unref(self);
-            *status = GBINDER_STATUS_OK;
-        }
+    } else if (gutil_strv_contains((GStrV*)radio_config_aidl_response_ifaces, iface)) {
+        /* RadioResponseInfo has the same fields/padding between HIDL and AIDL */
+        gsize out_size;
+        info = gbinder_reader_read_parcelable(&args, &out_size);
+        GASSERT(out_size == sizeof(RadioResponseInfo));
+    } else {
+        GDEBUG("radio_config_response called on unknown interface %s", iface);
+        return NULL;
     }
+
+    GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
+
+    if (info) {
+        int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
+        const GQuark quark = radio_config_resp_quark(self, code);
+        const guint* signals = radio_config_signals +
+            SIGNAL_OBSERVE_RESPONSE_0;
+
+        radio_config_ref(self);
+
+        /* High-priority observers get notified first */
+        for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
+            const int i = RADIO_OBSERVER_PRIORITY_INDEX(p);
+
+            if (signals[i]) {
+                g_signal_emit(self, signals[i], quark, code, info, &args);
+            }
+        }
+
+        /* Then the response is actually processed */
+        if (!radio_base_handle_resp(&self->base, code, info, &args)) {
+            const char* name = radio_config_known_resp_name(self, code);
+
+            /* Most likely this is a response to a cancelled request */
+            GDEBUG("Ignoring IRadioConfig response [%08x] %u %s",
+                info->serial, code, name ? name : "");
+        }
+
+        /* Followed by the remaining observers in their priority order */
+        for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
+            const int i = RADIO_OBSERVER_PRIORITY_INDEX(p);
+
+            if (signals[i]) {
+                g_signal_emit(self, signals[i], quark, code, info, &args);
+            }
+        }
+        radio_config_unref(self);
+        *status = GBINDER_STATUS_OK;
+    }
+
     return NULL;
 }
 
@@ -509,12 +595,12 @@ radio_config_create(
     GBinderLocalRequest* req;
     GBinderWriter writer;
     int status;
+    guint req_code = RADIO_CONFIG_REQ_NONE;
 
     radio_base_initialize(&self->base);
+    self->interface_type = desc->interface_type;
     self->version = desc->version;
     self->remote = gbinder_remote_object_ref(remote);
-    self->client = gbinder_client_new2(remote, radio_config_iface_info,
-        G_N_ELEMENTS(radio_config_iface_info));
     self->indication = gbinder_servicemanager_new_local_object2(sm,
         desc->ind_ifaces, radio_config_indication, self);
     self->response = gbinder_servicemanager_new_local_object2(sm,
@@ -522,14 +608,28 @@ radio_config_create(
     self->death_id = gbinder_remote_object_add_death_handler(remote,
         radio_config_died, self);
 
+    if (self->interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+        self->client = gbinder_client_new2(remote, radio_config_iface_info,
+            G_N_ELEMENTS(radio_config_iface_info));
+        req_code = RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS;
+    } else if (self->interface_type == RADIO_INTERFACE_TYPE_AIDL) {
+        self->client = gbinder_client_new2(remote, radio_config_aidl_iface_info,
+            G_N_ELEMENTS(radio_config_aidl_iface_info));
+        req_code = RADIO_CONFIG_AIDL_REQ_SET_RESPONSE_FUNCTIONS;
+
+        gbinder_local_object_set_stability(self->indication, GBINDER_STABILITY_VINTF);
+        gbinder_local_object_set_stability(self->response, GBINDER_STABILITY_VINTF);
+    }
+    GASSERT(self->client);
+
     /* IRadioConfig::setResponseFunctions */
     req = gbinder_client_new_request2(self->client,
-        RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS);
+        req_code);
     gbinder_local_request_init_writer(req, &writer);
     gbinder_writer_append_local_object(&writer, self->response);
     gbinder_writer_append_local_object(&writer, self->indication);
     gbinder_remote_reply_unref(gbinder_client_transact_sync_reply(self->client,
-        RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS, req, &status));
+        req_code, req, &status));
     GVERBOSE_("IRadioConfig::setResponseFunctions status %d", status);
     gbinder_local_request_unref(req);
     return self;
@@ -550,20 +650,51 @@ RadioConfig*
 radio_config_new_with_version(
     RADIO_CONFIG_INTERFACE max_version)
 {
-    /* Validate the requested version to avoid out-of-bounds access */
-    if (max_version < RADIO_CONFIG_INTERFACE_1_0) {
-        max_version = RADIO_CONFIG_INTERFACE_1_0;
-    } else if (max_version > RADIO_CONFIG_INTERFACE_MAX) {
-        max_version = RADIO_CONFIG_INTERFACE_MAX;
+    return radio_config_new_with_version_and_interface_type(max_version,
+        RADIO_INTERFACE_TYPE_HIDL);
+}
+
+RadioConfig*
+radio_config_new_with_version_and_interface_type(
+    RADIO_CONFIG_INTERFACE max_version,
+    RADIO_INTERFACE_TYPE interface_type)
+{
+    static RadioConfig** instances = NULL;
+    const RadioConfigInterfaceDesc* interfaces = NULL;
+    gsize num_interfaces = 0;
+    const char* binder_device = GBINDER_DEFAULT_HWBINDER;
+
+    if (interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+        /* Validate the requested version to avoid out-of-bounds access */
+        if (max_version < RADIO_CONFIG_INTERFACE_1_0) {
+            max_version = RADIO_CONFIG_INTERFACE_1_0;
+        } else if (max_version > RADIO_CONFIG_INTERFACE_MAX) {
+            max_version = RADIO_CONFIG_INTERFACE_MAX;
+        }
+
+        instances = radio_config_instance;
+        interfaces = radio_config_interfaces;
+        num_interfaces = G_N_ELEMENTS(radio_config_interfaces);
+    } else if (interface_type == RADIO_INTERFACE_TYPE_AIDL) {
+        /* Only RADIO_CONFIG_AIDL_INTERFACE_1 is supported for now */
+        max_version = RADIO_CONFIG_AIDL_INTERFACE_1;
+
+        binder_device = GBINDER_DEFAULT_BINDER;
+        instances = radio_config_aidl_instance;
+        interfaces = radio_config_aidl_interfaces;
+        num_interfaces = G_N_ELEMENTS(radio_config_aidl_interfaces);
+    } else {
+        GINFO("Wrong interface_type %d (neither HIDL nor AIDL)", interface_type);
+        return NULL;
     }
 
-    if (radio_config_instance[max_version]) {
+    if (instances[max_version]) {
         /* The requested instance already exists */
-        return radio_config_ref(radio_config_instance[max_version]);
+        return radio_config_ref(instances[max_version]);
     } else {
-        /* Assume /dev/hwbinder */
+        /* Assume /dev/hwbinder for HIDL, /dev/binder for AIDL */
         GBinderServiceManager* sm =
-            gbinder_servicemanager_new(GBINDER_DEFAULT_HWBINDER);
+            gbinder_servicemanager_new(binder_device);
 
         if (sm) {
             guint i;
@@ -572,8 +703,8 @@ radio_config_new_with_version(
             RadioConfig* config = NULL;
 
             /* Find maximum available version not exceeding the requested one */
-            for (i=0; i<G_N_ELEMENTS(radio_config_interfaces) && !obj; i++) {
-                desc = radio_config_interfaces + i;
+            for (i=0; i<num_interfaces && !obj; i++) {
+                desc = interfaces + i;
                 if (desc->version <= max_version) {
                     obj = gbinder_servicemanager_get_service_sync(sm,
                         desc->fqname, NULL);
@@ -582,9 +713,8 @@ radio_config_new_with_version(
                          * desc->version isn't necessarily equal to
                          * max_version
                          */
-                        if (radio_config_instance[desc->version]) {
-                            config = radio_config_ref(radio_config_instance
-                                [desc->version]);
+                        if (instances[desc->version]) {
+                            config = radio_config_ref(instances[desc->version]);
                         } else {
                             GINFO("Connected to %s", desc->fqname);
                             config = radio_config_create(sm, obj, desc);
@@ -596,9 +726,9 @@ radio_config_new_with_version(
 
             gbinder_servicemanager_unref(sm);
             if (config) {
-                radio_config_instance[desc->version] = config;
+                instances[desc->version] = config;
                 g_object_weak_ref(G_OBJECT(config), radio_config_gone,
-                    radio_config_instance + desc->version);
+                    instances + desc->version);
                 return config;
             }
         }
@@ -632,6 +762,13 @@ radio_config_dead(
     return G_UNLIKELY(!self) || self->dead;
 }
 
+RADIO_INTERFACE_TYPE
+radio_config_interface_type(
+    RadioConfig* self)
+{
+    return G_LIKELY(self) ? self->interface_type : RADIO_INTERFACE_TYPE_NONE;
+}
+
 RADIO_CONFIG_INTERFACE
 radio_config_interface(
     RadioConfig* self)
@@ -659,7 +796,7 @@ radio_config_req_name(
     RadioConfig* self,
     RADIO_CONFIG_REQ req)
 {
-    const char* known = radio_config_known_req_name(req);
+    const char* known = radio_config_known_req_name(self, req);
 
     if (known) {
         return known;
@@ -678,7 +815,7 @@ radio_config_resp_name(
     RadioConfig* self,
     RADIO_CONFIG_RESP resp)
 {
-    const char* known = radio_config_known_resp_name(resp);
+    const char* known = radio_config_known_resp_name(self, resp);
 
     if (known) {
         return known;
@@ -697,7 +834,7 @@ radio_config_ind_name(
     RadioConfig* self,
     RADIO_CONFIG_IND ind)
 {
-    const char* known = radio_config_known_ind_name(ind);
+    const char* known = radio_config_known_ind_name(self, ind);
 
     if (known) {
         return known;
