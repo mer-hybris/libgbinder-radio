@@ -796,7 +796,7 @@ radio_instance_create(
     RadioInstance* self = NULL;
     GBinderServiceManager* sm = gbinder_servicemanager_new(dev);
     const RadioInterfaceDesc* interfaces = NULL;
-    gsize num_interfaces = 0;
+    gsize i, num_interfaces = 0;
 
     if (!sm) {
         GERR_("Failed to get ServiceManager on %s", dev);
@@ -812,7 +812,7 @@ radio_instance_create(
         num_interfaces = 1;
     }
 
-    for (guint i = 0; i < num_interfaces && !self; i++) {
+    for (i = 0; i < num_interfaces && !self; i++) {
         const RadioInterfaceDesc* desc = interfaces + i;
 
         if (desc->version <= max_version) {
