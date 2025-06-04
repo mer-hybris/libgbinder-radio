@@ -72,6 +72,8 @@ test_req_name(
         "startNetworkScan_1_4");
     g_assert_cmpstr(radio_req_name(RADIO_REQ_START_NETWORK_SCAN_1_5),==,
         "startNetworkScan_1_5");
+    g_assert_cmpstr(radio_req_name(RADIO_REQ_START_HANDOVER),==,
+        "startHandover");
 }
 
 /*==========================================================================*
@@ -101,6 +103,8 @@ test_resp_name(
         "startNetworkScanResponse_1_4");
     g_assert_cmpstr(radio_resp_name(RADIO_RESP_START_NETWORK_SCAN_1_5),==,
         "startNetworkScanResponse_1_5");
+    g_assert_cmpstr(radio_resp_name(RADIO_RESP_START_HANDOVER),==,
+        "startHandoverResponse");
 }
 
 /*==========================================================================*
@@ -124,6 +128,8 @@ test_ind_name(
         "currentEmergencyNumberList");
     g_assert_cmpstr(radio_ind_name(RADIO_IND_REGISTRATION_FAILED),==,
         "registrationFailed");
+    g_assert_cmpstr(radio_ind_name(RADIO_IND_UNTHROTTLE_APN),==,
+        "unthrottleApn");
 }
 
 /*==========================================================================*
@@ -155,7 +161,8 @@ test_req_resp(
           RADIO_RESP_SET_SIGNAL_STRENGTH_REPORTING_CRITERIA },
         { RADIO_REQ_SET_SYSTEM_SELECTION_CHANNELS,
           RADIO_RESP_SET_SYSTEM_SELECTION_CHANNELS },
-        { RADIO_REQ_EMERGENCY_DIAL, RADIO_RESP_EMERGENCY_DIAL }
+        { RADIO_REQ_EMERGENCY_DIAL, RADIO_RESP_EMERGENCY_DIAL },
+        { RADIO_REQ_START_HANDOVER, RADIO_RESP_START_HANDOVER }
     };
 
     int i;
@@ -233,6 +240,8 @@ test_req_resp2(
         { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_1_4,
           RADIO_RESP_GET_ICC_CARD_STATUS_1_4 },
         { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_1_5,
+          RADIO_RESP_GET_ICC_CARD_STATUS_1_5 },
+        { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_1_6,
           RADIO_RESP_GET_ICC_CARD_STATUS_1_5 },
         { RADIO_REQ_GET_ICC_CARD_STATUS, RADIO_INTERFACE_COUNT,
           RADIO_RESP_NONE },
