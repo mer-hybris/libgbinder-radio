@@ -123,6 +123,7 @@ static GHashTable* radio_instance_table = NULL;
 #define DEFAULT_INTERFACE RADIO_INTERFACE_1_0
 
 static const GBinderClientIfaceInfo radio_iface_info[] = {
+    {RADIO_1_6, RADIO_1_6_REQ_LAST },
     {RADIO_1_5, RADIO_1_5_REQ_LAST },
     {RADIO_1_4, RADIO_1_4_REQ_LAST },
     {RADIO_1_3, RADIO_1_3_REQ_LAST },
@@ -133,6 +134,7 @@ static const GBinderClientIfaceInfo radio_iface_info[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_iface_info) == RADIO_INTERFACE_COUNT);
 
 static const char* const radio_indication_ifaces[] = {
+    RADIO_INDICATION_1_6,
     RADIO_INDICATION_1_5,
     RADIO_INDICATION_1_4,
     RADIO_INDICATION_1_3,
@@ -144,6 +146,7 @@ static const char* const radio_indication_ifaces[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_indication_ifaces) == RADIO_INTERFACE_COUNT + 1);
 
 static const char* const radio_response_ifaces[] = {
+    RADIO_RESPONSE_1_6,
     RADIO_RESPONSE_1_5,
     RADIO_RESPONSE_1_4,
     RADIO_RESPONSE_1_3,
@@ -174,6 +177,7 @@ typedef struct radio_interface_desc {
         RADIO_REQ_SET_RESPONSE_FUNCTIONS
 
 static const RadioInterfaceDesc radio_interfaces[] = {
+   { RADIO_INTERFACE_DESC(1_6) },
    { RADIO_INTERFACE_DESC(1_5) },
    { RADIO_INTERFACE_DESC(1_4) },
    { RADIO_INTERFACE_DESC(1_3) },
