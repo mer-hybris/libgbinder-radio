@@ -52,12 +52,14 @@ static const GBinderClientIfaceInfo radio_config_ind_iface_info[] = {
 };
 
 static const GBinderClientIfaceInfo radio_config_resp_iface_info[] = {
+    {RADIO_CONFIG_RESPONSE_1_3, RADIO_CONFIG_1_3_RESP_LAST },
     {RADIO_CONFIG_RESPONSE_1_2, RADIO_CONFIG_1_2_RESP_LAST },
     {RADIO_CONFIG_RESPONSE_1_1, RADIO_CONFIG_1_1_RESP_LAST },
     {RADIO_CONFIG_RESPONSE_1_0, RADIO_CONFIG_1_0_RESP_LAST }
 };
 
 static const char* const radio_config_req_ifaces[] = {
+    RADIO_CONFIG_1_3,
     RADIO_CONFIG_1_2,
     RADIO_CONFIG_1_1,
     RADIO_CONFIG_1_0,
@@ -67,7 +69,8 @@ static const char* const radio_config_req_ifaces[] = {
 static const char* const radio_config_fqnames[] = {
     RADIO_CONFIG_1_0_FQNAME,
     RADIO_CONFIG_1_1_FQNAME,
-    RADIO_CONFIG_1_2_FQNAME
+    RADIO_CONFIG_1_2_FQNAME,
+    RADIO_CONFIG_1_3_FQNAME
 };
 
 static
@@ -132,6 +135,7 @@ test_config_req_resp(
     case RADIO_CONFIG_REQ_##NAME: return RADIO_CONFIG_RESP_##NAME;
     RADIO_CONFIG_CALL_1_0(REQ_RESP_)
     RADIO_CONFIG_CALL_1_1(REQ_RESP_)
+    RADIO_CONFIG_CALL_1_3(REQ_RESP_)
 #undef REQ_RESP_
     case RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS:
         return RADIO_CONFIG_RESP_NONE;
@@ -410,7 +414,7 @@ test_name(
     void)
 {
     TestCommon test;
-    RadioConfig* client = test_common_init(&test, RADIO_CONFIG_INTERFACE_1_1);
+    RadioConfig* client = test_common_init(&test, RADIO_CONFIG_INTERFACE_1_3);
 
     g_assert_cmpstr(radio_config_req_name(client,
         RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS), == ,
@@ -422,6 +426,9 @@ test_name(
         RADIO_CONFIG_REQ_GET_PHONE_CAPABILITY), == ,
         "getPhoneCapability");
     g_assert_cmpstr(radio_config_req_name(client,
+        RADIO_CONFIG_REQ_GET_HAL_DEVICE_CAPABILITIES), == ,
+        "getHalDeviceCapabilities");
+    g_assert_cmpstr(radio_config_req_name(client,
         (RADIO_CONFIG_REQ)123), == ,
         "123");
 
@@ -431,6 +438,9 @@ test_name(
     g_assert_cmpstr(radio_config_resp_name(client,
         RADIO_CONFIG_RESP_GET_PHONE_CAPABILITY), == ,
         "getPhoneCapabilityResponse");
+    g_assert_cmpstr(radio_config_resp_name(client,
+        RADIO_CONFIG_RESP_GET_HAL_DEVICE_CAPABILITIES), == ,
+        "getHalDeviceCapabilitiesResponse");
     g_assert_cmpstr(radio_config_resp_name(client,
         (RADIO_CONFIG_RESP)1234), == ,
         "1234");
