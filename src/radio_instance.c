@@ -50,8 +50,11 @@
 
 #include <glib-object.h>
 
+typedef struct radio_interface_desc RadioInterfaceDesc;
+
 typedef GObjectClass RadioInstanceClass;
 struct radio_instance_priv {
+    const RadioInterfaceDesc* desc;
     GUtilIdlePool* idle;
     GBinderClient* client;
     GBinderRemoteObject* remote;
@@ -154,14 +157,15 @@ static const char* const radio_response_ifaces[] = {
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_response_ifaces) == RADIO_INTERFACE_COUNT + 1);
 
-typedef struct radio_interface_desc {
+struct radio_interface_desc {
     RADIO_INTERFACE version;
     RADIO_AIDL_INTERFACE aidl_interface;
     const char* radio_iface;
     const char* const* ind_ifaces;
     const char* const* resp_ifaces;
     gint32 set_response_functions_req;
-} RadioInterfaceDesc;
+    gint32 response_acknowledgement_req;
+};
 
 #define RADIO_INTERFACE_INDEX(x) (RADIO_INTERFACE_COUNT - x - 1)
 
@@ -171,7 +175,8 @@ typedef struct radio_interface_desc {
         RADIO_##v, \
         radio_indication_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
         radio_response_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
-        RADIO_REQ_SET_RESPONSE_FUNCTIONS
+        RADIO_REQ_SET_RESPONSE_FUNCTIONS, \
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT
 
 static const RadioInterfaceDesc radio_interfaces[] = {
    { RADIO_INTERFACE_DESC(1_5) },
@@ -271,6 +276,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_data_indication_ifaces,
         radio_data_response_ifaces,
         RADIO_DATA_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_DATA_REQ_RESPONSE_ACKNOWLEDGEMENT,
     },
     {
         RADIO_INTERFACE_NONE,
@@ -279,6 +285,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_ims_indication_ifaces,
         radio_ims_response_ifaces,
         RADIO_IMS_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_REQ_NONE,
     },
     {
         RADIO_INTERFACE_NONE,
@@ -287,6 +294,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_messaging_indication_ifaces,
         radio_messaging_response_ifaces,
         RADIO_MESSAGING_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_MESSAGING_REQ_RESPONSE_ACKNOWLEDGEMENT,
     },
     {
         RADIO_INTERFACE_NONE,
@@ -295,6 +303,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_modem_indication_ifaces,
         radio_modem_response_ifaces,
         RADIO_MODEM_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_MODEM_REQ_RESPONSE_ACKNOWLEDGEMENT,
     },
     {
         RADIO_INTERFACE_NONE,
@@ -303,6 +312,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_network_indication_ifaces,
         radio_network_response_ifaces,
         RADIO_NETWORK_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_NETWORK_REQ_RESPONSE_ACKNOWLEDGEMENT,
     },
     {
         RADIO_INTERFACE_NONE,
@@ -311,6 +321,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_sim_indication_ifaces,
         radio_sim_response_ifaces,
         RADIO_SIM_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_SIM_REQ_RESPONSE_ACKNOWLEDGEMENT,
     },
     {
         RADIO_INTERFACE_NONE,
@@ -319,6 +330,7 @@ static const RadioInterfaceDesc radio_aidl_interfaces[] = {
         radio_voice_indication_ifaces,
         radio_voice_response_ifaces,
         RADIO_VOICE_REQ_SET_RESPONSE_FUNCTIONS,
+        RADIO_VOICE_REQ_RESPONSE_ACKNOWLEDGEMENT,
     }
 };
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_aidl_interfaces) == RADIO_AIDL_INTERFACE_COUNT);
@@ -739,6 +751,7 @@ radio_instance_create_version(
     self->version = desc->version;
     self->interface_aidl = desc->aidl_interface;
 
+    priv->desc = desc;
     priv->remote = gbinder_remote_object_ref(remote);
     priv->indication = gbinder_servicemanager_new_local_object2(sm,
         desc->ind_ifaces, radio_instance_indication, self);
@@ -1230,7 +1243,10 @@ radio_instance_ack(
 {
     if (G_LIKELY(self)) {
         GBinderClient* client = self->priv->client;
-        const RADIO_REQ code = RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT;
+        guint32 code = self->priv->desc->response_acknowledgement_req;
+        if (code == RADIO_REQ_NONE) {
+            return 0;
+        }
 
         radio_instance_notify_request_observers(self, code, NULL);
         return gbinder_client_transact_sync_oneway(client, code, NULL) >= 0;
