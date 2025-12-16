@@ -1,3 +1,11 @@
+libgbinder-radio (1.6.1) unstable; urgency=medium
+
+  * Virtualize parsing of RadioResponse
+  * Fix response acknowledgements in AIDL interfaces
+  * Fix compilation error
+
+ -- Matti Lehtimäki <matti.lehtimaki@jolla.com>  Tue, 16 Dec 2025 22:25:31 +0300
+
 libgbinder-radio (1.6.0) unstable; urgency=medium
 
   * Implement support for AIDL IRadioIms
