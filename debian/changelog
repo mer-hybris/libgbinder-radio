@@ -1,3 +1,9 @@
+libgbinder-radio (1.6.2) unstable; urgency=medium
+
+  * Added radio_request_try_submit()
+
+ -- Slava Monich <slava@monich.com>  Thu, 21 May 2026 20:19:57 +0300
+
 libgbinder-radio (1.6.1) unstable; urgency=medium
 
   * Virtualize parsing of RadioResponse
