@@ -209,11 +209,6 @@ void
 radio_request_drop( /* cancel and unref */
     RadioRequest* req);
 
-void
-radio_request_set_retry_func(
-    RadioRequest* req,
-    RadioRequestRetryFunc retry);
-
 void*
 radio_request_user_data(
     RadioRequest* req); /* Since 1.4.11 */
