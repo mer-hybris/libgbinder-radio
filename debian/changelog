@@ -1,3 +1,11 @@
+libgbinder-radio (1.6.3) unstable; urgency=medium
+
+  * Removed duplicate function declaration
+  * Improved test coverage
+  * Use release build for unit testing
+
+ -- Slava Monich <slava@monich.com>  Sat, 23 May 2026 00:57:00 +0300
+
 libgbinder-radio (1.6.2) unstable; urgency=medium
 
   * Added radio_request_try_submit()
