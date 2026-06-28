@@ -71,7 +71,7 @@ COVERAGE_BUILD_DIR = $(BUILD_DIR)/coverage
 # Tools and flags
 #
 
-CC = $(CROSS_COMPILE)gcc
+CC ?= $(CROSS_COMPILE)gcc
 LD = $(CC)
 WARNINGS = -Wall -Wstrict-aliasing -Wunused-result
 DEFINES += -DGLIB_VERSION_MAX_ALLOWED=GLIB_VERSION_2_30 \
