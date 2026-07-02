@@ -1,6 +1,6 @@
 Name: libgbinder-radio
 
-Version: 1.6.3
+Version: 1.6.4
 Release: 0
 Summary: Binder client library for Android radio interfaces
 License: BSD
@@ -19,6 +19,9 @@ BuildRequires: pkgconfig(libgbinder) >= %{libgbinder_version}
 # license macro requires rpm >= 4.11
 BuildRequires: pkgconfig(rpm)
 %define license_support %(pkg-config --exists 'rpm >= 4.11'; echo $?)
+
+# make_build macro appeared in rpm 4.12
+%{!?make_build:%define make_build make %{_smp_mflags}}
 
 Requires: glib2 >= %{glib_version}
 Requires: libglibutil >= %{libglibutil_version}
@@ -40,10 +43,9 @@ This package contains the development library for %{name}.
 %setup -q
 
 %build
-make %{_smp_mflags} LIBDIR=%{_libdir} KEEP_SYMBOLS=1 release pkgconfig
+%make_build LIBDIR=%{_libdir} KEEP_SYMBOLS=1 release pkgconfig
 
 %install
-rm -rf %{buildroot}
 make LIBDIR=%{_libdir} DESTDIR=%{buildroot} install-dev
 
 %check

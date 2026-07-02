@@ -1,3 +1,11 @@
+libgbinder-radio (1.6.4) unstable; urgency=medium
+
+  * Push the queue after dropping a request
+  * Deprecate AIDL structures
+  * Honor an externally provided CC
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 03 Jul 2026 00:55:22 +0300
+
 libgbinder-radio (1.6.3) unstable; urgency=medium
 
   * Removed duplicate function declaration
