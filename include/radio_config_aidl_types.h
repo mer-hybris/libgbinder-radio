@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2024 Jollyboys Ltd
  *
  * You may use this file under the terms of the BSD license as follows:
@@ -58,7 +59,11 @@ typedef enum radio_config_aidl_interface {
 #define RADIO_CONFIG_AIDL_RESPONSE         RADIO_CONFIG_AIDL_IFACE_PREFIX RADIO_CONFIG_AIDL_RESPONSE_IFACE
 #define RADIO_CONFIG_AIDL_INDICATION       RADIO_CONFIG_AIDL_IFACE_PREFIX RADIO_CONFIG_AIDL_INDICATION_IFACE
 
-/* Types defined in android.hardware.radio.config package */
+/*
+ * Types defined in android.hardware.radio.config package.
+ *
+ * These are deprecated because AIDL Parcelables need to be parsed manually.
+ */
 
 /* PhoneCapability */
 typedef struct radio_aidl_phone_capability {
@@ -69,7 +74,7 @@ typedef struct radio_aidl_phone_capability {
         guint32 length;
         guint8 data[];
     } logicalModemList;
-} RadioAidlPhoneCapability;
+} RadioAidlPhoneCapability G_GNUC_DEPRECATED;
 
 /* SimPortInfo */
 typedef struct radio_aidl_sim_port_info {
@@ -90,7 +95,7 @@ typedef struct radio_aidl_sim_slot_status {
         guint32 length;
         RadioAidlSimPortInfo data[];
     } portInfo;
-} RadioAidlSimSlotStatus;
+} RadioAidlSimSlotStatus G_GNUC_DEPRECATED;
 
 /* Transaction codes */
 
