@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2022 Jolla Ltd.
  * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -82,6 +83,11 @@ static guint radio_base_signals[SIGNAL_COUNT] = { 0 };
 static inline gboolean
 radio_base_can_retry(RadioRequest* req)
     { return req->max_retries < 0 || req->max_retries > req->retry_count; }
+
+static
+guint
+radio_base_submit_queued_requests(
+    RadioBase* self);
 
 /*==========================================================================*
  * Implementation
@@ -179,6 +185,7 @@ radio_base_drop_req(
 {
     radio_base_cancel_request(self, req);
     radio_base_deactivate_request(self, req);
+    radio_base_submit_queued_requests(self);
     radio_base_reset_timeout(self);
     if (req->state < RADIO_REQUEST_STATE_FAILED) {
         req->state = RADIO_REQUEST_STATE_CANCELLED;

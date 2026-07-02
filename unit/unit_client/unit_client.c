@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2026 Slava Monich <slava@monich.com>
  * Copyright (C) 2021-2022 Jolla Ltd.
  *
@@ -565,7 +566,7 @@ test_basic(
     test.client = NULL;
 
     g_assert(!destroyed);
-    g_assert(!radio_request_try_submit(req));
+    g_assert(!radio_request_submit(req));
     radio_request_set_timeout(req, 100); /* No effect, the client is gone */
     radio_request_drop(req);
 
@@ -1229,7 +1230,7 @@ test_block_complete_cb(
 
 static
 void
-test_block_destroy_cb(
+test_block_destroy1_cb(
     gpointer user_data)
 {
     TestBlock* test = user_data;
@@ -1260,7 +1261,7 @@ test_block(
 
     /* One blocking request */
     req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
-        test_block_complete_cb, test_block_destroy_cb, &test);
+        test_block_complete_cb, test_block_destroy1_cb, &test);
     g_assert(req);
     g_assert(req->serial);
     radio_request_set_blocking(req, TRUE);
@@ -1270,7 +1271,7 @@ test_block(
 
     /* And two non-blocking */
     req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
-        test_block_complete_cb, test_block_destroy_cb, &test);
+        test_block_complete_cb, test_block_destroy1_cb, &test);
     g_assert(req);
     g_assert(req->serial);
     g_assert(radio_request_submit(req));
@@ -1278,7 +1279,7 @@ test_block(
     radio_request_unref(req);
 
     req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
-        test_block_complete_cb, test_block_destroy_cb, &test);
+        test_block_complete_cb, test_block_destroy1_cb, &test);
     g_assert(req);
     g_assert(req->serial);
     g_assert(radio_request_submit(req));
@@ -1289,6 +1290,89 @@ test_block(
 
     g_assert_cmpint(test.completed, == ,3);
     g_assert_cmpint(test.destroyed, == ,3);
+
+    /* Cleanup */
+    g_main_loop_unref(test.loop);
+    test_common_cleanup(&test.common);
+}
+
+static
+void
+test_block_complete2_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestBlock* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert_cmpint(resp, == ,RADIO_RESP_GET_MUTE);
+    g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
+    test->completed++;
+    GDEBUG("completion %u", test->completed);
+}
+
+static
+void
+test_block_destroy2_cb(
+    gpointer user_data)
+{
+    TestBlock* test = user_data;
+
+    test->destroyed++;
+    GDEBUG("destruction %u", test->destroyed);
+    if (test->destroyed == 2) {
+        test_quit_later(test->loop);
+    }
+}
+
+static
+void
+test_block2(
+    void)
+{
+    RadioClient* client;
+    RadioRequest* req1;
+    TestBlock test;
+
+    memset(&test, 0, sizeof(test));
+    test_common_init(&test.common);
+    test_common_connected(&test.common);
+    test.loop = g_main_loop_new(NULL, FALSE);
+    client = test.common.client;
+
+    /* Blocking request (will be dropped) */
+    req1 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_complete_not_reached, test_block_destroy2_cb, &test);
+    g_assert_cmpuint(req1->serial, != ,0);
+    radio_request_set_blocking(req1, TRUE);
+    g_assert_true(radio_request_submit(req1));
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+
+    /* Non-blocking with a timeout */
+    RadioRequest* req2;
+    req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_complete2_cb, test_block_destroy2_cb, &test);
+    g_assert_cmpuint(req2->serial, != ,0);
+    radio_request_set_timeout(req2, TEST_TIMEOUT_MS * 2);
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    radio_request_unref(req2);
+
+    /* Drop the blocking request. That will allow req2 to proceed */
+    radio_request_ref(req1);
+    radio_request_drop(req1);
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_CANCELLED);
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_unref(req1);
+
+    test_run(&test_opt, test.loop);
+
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(test.destroyed, == ,2);
 
     /* Cleanup */
     g_main_loop_unref(test.loop);
@@ -2082,9 +2166,10 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("group"), test_group);
     g_test_add_func(TEST_("group2"), test_group2);
     g_test_add_func(TEST_("group3"), test_group3);
-    g_test_add_func(TEST_("block"), test_block);
-    g_test_add_func(TEST_("block_timeout"), test_block_timeout);
-    g_test_add_func(TEST_("block_retry"), test_block_retry);
+    g_test_add_func(TEST_("block/1"), test_block);
+    g_test_add_func(TEST_("block/2"), test_block2);
+    g_test_add_func(TEST_("block/timeout"), test_block_timeout);
+    g_test_add_func(TEST_("block/retry"), test_block_retry);
     g_test_add_func(TEST_("retry"), test_retry);
     g_test_add_func(TEST_("retry2"), test_retry2);
     g_test_add_func(TEST_("fail"), test_fail);
