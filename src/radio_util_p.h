@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2022 Jolla Ltd.
  * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -43,6 +44,16 @@
 guint
 radio_observer_priority_index(
     RADIO_OBSERVER_PRIORITY priority)
+    RADIO_INTERNAL;
+
+const RadioResponseInfo*
+radio_read_response_info_hidl(
+    GBinderReader* reader)
+    RADIO_INTERNAL;
+
+const RadioResponseInfo*
+radio_read_response_info_aidl(
+    GBinderReader* reader)
     RADIO_INTERNAL;
 
 #endif /* RADIO_UTIL_PRIVATE_H */
