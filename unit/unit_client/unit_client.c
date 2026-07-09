@@ -482,6 +482,13 @@ test_null(
     g_assert(!radio_client_add_connected_handler(NULL, NULL, NULL));
     g_assert_cmpint(radio_client_interface(NULL), == ,RADIO_INTERFACE_NONE);
 
+    g_assert_null(radio_client_req_name(NULL, 0));
+    g_assert_null(radio_client_resp_name(NULL, 0));
+    g_assert_null(radio_client_ind_name(NULL, 0));
+    g_assert_nonnull(radio_client_req_name(NULL, 1));
+    g_assert_nonnull(radio_client_resp_name(NULL, 1));
+    g_assert_nonnull(radio_client_ind_name(NULL, 1));
+
     radio_request_unref(NULL);
     radio_request_drop(NULL);
     radio_request_cancel(NULL);
@@ -527,6 +534,13 @@ test_basic(
     g_assert_cmpstr(radio_client_slot(client), == ,test.radio->slot);
     g_assert_cmpint(radio_client_interface(client), == , test.radio->version);
     g_assert(!radio_client_connected(client));
+
+    g_assert_null(radio_client_req_name(client, 0));
+    g_assert_null(radio_client_resp_name(client, 0));
+    g_assert_null(radio_client_ind_name(client, 0));
+    g_assert_nonnull(radio_client_req_name(client, 1));
+    g_assert_nonnull(radio_client_resp_name(client, 1));
+    g_assert_nonnull(radio_client_ind_name(client, 1));
 
     /* Adding NULL handler is a nop */
     g_assert(!radio_client_add_indication_handler(client, RADIO_IND_ANY,
