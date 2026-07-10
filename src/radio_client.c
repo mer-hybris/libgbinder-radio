@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2022 Jolla Ltd.
  * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -258,6 +259,30 @@ radio_client_slot(
     RadioClient* self)
 {
     return G_LIKELY(self) ? self->instance->slot : NULL;
+}
+
+const char*
+radio_client_req_name(
+    RadioClient* self,
+    RADIO_REQ req) /* Since 1.6.5 */
+{
+    return radio_req_name2(self ? self->instance : NULL, req);
+}
+
+const char*
+radio_client_resp_name(
+    RadioClient* self,
+    RADIO_RESP resp) /* Since 1.6.5 */
+{
+    return radio_resp_name2(self ? self->instance : NULL, resp);
+}
+
+const char*
+radio_client_ind_name(
+    RadioClient* self,
+    RADIO_IND ind) /* Since 1.6.5 */
+{
+    return radio_ind_name2(self ? self->instance : NULL, ind);
 }
 
 gboolean

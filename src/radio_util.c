@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2018-2022 Jolla Ltd.
  * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -38,6 +39,8 @@
 #include "radio_instance.h"
 #include "radio_log.h"
 
+#include <gbinder.h>
+
 GLOG_MODULE_DEFINE("gbinder-radio");
 
 guint
@@ -51,6 +54,25 @@ radio_observer_priority_index(
     } else {
         return priority - RADIO_OBSERVER_PRIORITY_LOWEST;
     }
+}
+
+const RadioResponseInfo*
+radio_read_response_info_hidl(
+    GBinderReader* reader)
+{
+    return gbinder_reader_read_hidl_struct(reader, RadioResponseInfo);
+}
+
+const RadioResponseInfo*
+radio_read_response_info_aidl(
+    GBinderReader* reader)
+{
+    gsize size = 0;
+    const RadioResponseInfo* info = gbinder_reader_read_parcelable
+        (reader, &size);
+
+    GASSERT(size >= sizeof(*info));
+    return (size >= sizeof(*info)) ? info : NULL;
 }
 
 const char*

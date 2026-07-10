@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021 Jolla Ltd.
  * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
  *
@@ -81,6 +82,21 @@ radio_client_aidl_interface(
 const char*
 radio_client_slot(
     RadioClient* client);
+
+const char*
+radio_client_req_name(
+    RadioClient* client,
+    RADIO_REQ req); /* Since 1.6.5 */
+
+const char*
+radio_client_resp_name(
+    RadioClient* client,
+    RADIO_RESP resp); /* Since 1.6.5 */
+
+const char*
+radio_client_ind_name(
+    RadioClient* client,
+    RADIO_IND ind); /* Since 1.6.5 */
 
 gboolean
 radio_client_dead(

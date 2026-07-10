@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2022 Jolla Ltd.
  * Copyright (C) 2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -394,6 +395,8 @@ test_null(
     g_assert(!radio_config_add_indication_observer_with_priority(NULL,
         RADIO_CONFIG_IND_ANY, RADIO_OBSERVER_PRIORITY_LOWEST, NULL, NULL));
     g_assert(!radio_config_request_new(NULL, ERROR_REQ, NULL, NULL, NULL, NULL));
+    g_assert_cmpint(radio_config_interface_type(NULL), ==,
+        RADIO_INTERFACE_TYPE_NONE);
 
     radio_config_unref(NULL);
     radio_config_remove_handler(NULL, 0);
@@ -421,9 +424,7 @@ test_name(
     g_assert_cmpstr(radio_config_req_name(client,
         RADIO_CONFIG_REQ_GET_PHONE_CAPABILITY), == ,
         "getPhoneCapability");
-    g_assert_cmpstr(radio_config_req_name(client,
-        (RADIO_CONFIG_REQ)123), == ,
-        "123");
+    g_assert_null(radio_config_req_name(client, (RADIO_CONFIG_REQ)123));
 
     g_assert_cmpstr(radio_config_resp_name(client,
         RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS), == ,
@@ -431,16 +432,12 @@ test_name(
     g_assert_cmpstr(radio_config_resp_name(client,
         RADIO_CONFIG_RESP_GET_PHONE_CAPABILITY), == ,
         "getPhoneCapabilityResponse");
-    g_assert_cmpstr(radio_config_resp_name(client,
-        (RADIO_CONFIG_RESP)1234), == ,
-        "1234");
+    g_assert_null(radio_config_resp_name(client, (RADIO_CONFIG_RESP)1234));
 
     g_assert_cmpstr(radio_config_ind_name(client,
         RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED), == ,
         "simSlotsStatusChanged");
-    g_assert_cmpstr(radio_config_ind_name(client,
-        (RADIO_CONFIG_IND)12345), == ,
-        "12345");
+    g_assert_null(radio_config_ind_name(client, (RADIO_CONFIG_IND)12345));
 
     test_common_cleanup(&test);
 }
@@ -455,7 +452,10 @@ test_none(
     void)
 {
     /* No service => no client */
-    g_assert(!radio_config_new());
+    g_assert_null(radio_config_new());
+    /* Invalid interface type */
+    g_assert_null(radio_config_new_with_version_and_interface_type(0,
+        RADIO_INTERFACE_TYPE_NONE));
 }
 
 /*==========================================================================*
@@ -477,6 +477,8 @@ test_basic(
     g_assert(radio_config_rpc_header_size(client,
         RADIO_CONFIG_REQ_GET_SIM_SLOTS_STATUS));
     g_assert_cmpint(radio_config_interface(client), == ,version);
+    g_assert_cmpint(radio_config_interface_type(client), == ,
+        RADIO_INTERFACE_TYPE_HIDL);
     g_assert(radio_config_ref(client) == client);
     radio_config_unref(client);
 
