@@ -1,3 +1,11 @@
+libgbinder-radio (1.6.5) unstable; urgency=medium
+
+  * Added radio_client_req/resp/ind_name() API
+  * Mark clients without rilConnected as connected
+  * Refactored RadioConfig implementation
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 10 Jul 2026 20:22:59 +0300
+
 libgbinder-radio (1.6.4) unstable; urgency=medium
 
   * Push the queue after dropping a request
