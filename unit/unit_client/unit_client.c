@@ -167,6 +167,7 @@ typedef struct test_radio_service {
     gboolean mute;
 } TestRadioService;
 
+#define OK_REQ RADIO_REQ_GET_MUTE
 #define FAIL_REQ RADIO_REQ_GET_ICC_CARD_STATUS
 #define ERROR_REQ RADIO_REQ_GET_IMS_REGISTRATION_STATE
 #define ERROR_RESP RADIO_RESP_GET_IMS_REGISTRATION_STATE
@@ -359,6 +360,7 @@ typedef struct test_simple_data {
     GMainLoop* loop;
     int completed; /* Typically used as a boolean */
     int destroyed; /* Typically used as a boolean */
+    int stop_destroy_count;
 } TestSimple;
 
 static
@@ -368,6 +370,7 @@ test_simple_init(
 {
     memset(test, 0, sizeof(*test));
     test->loop = g_main_loop_new(NULL, FALSE);
+    test->stop_destroy_count = 1;
     return test_common_init(&test->common);
 }
 
@@ -388,10 +391,11 @@ test_simple_destroy_cb(
     TestSimple* test = user_data;
 
     GDEBUG("done");
-    g_assert(test->completed);
-    g_assert(!test->destroyed);
-    test->destroyed = TRUE;
-    test_quit_later(test->loop);
+    g_assert(test->completed > test->destroyed);
+    test->destroyed++;
+    if (test->destroyed == test->stop_destroy_count) {
+        test_quit_later(test->loop);
+    }
 }
 
 static
@@ -411,7 +415,7 @@ test_simple_complete_ok_cb(
     g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
     g_assert(!test->completed);
     g_assert(!test->destroyed);
-    test->completed = TRUE;
+    test->completed++;
 }
 
 static
@@ -432,7 +436,7 @@ test_simple_complete_fail_cb(
     g_assert_cmpint(error, == ,RADIO_ERROR_NONE);
     g_assert(!test->completed);
     g_assert(!test->destroyed);
-    test->completed = TRUE;
+    test->completed++;
 }
 
 static
@@ -453,7 +457,7 @@ test_simple_complete_error_cb(
     g_assert_cmpint(error, == ,RADIO_ERROR_GENERIC_FAILURE);
     g_assert(!test->completed);
     g_assert(!test->destroyed);
-    test->completed = TRUE;
+    test->completed++;
 }
 
 /*==========================================================================*
@@ -1616,14 +1620,12 @@ test_retry_complete_cb(
     g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
     g_assert_cmpint(resp, == ,ERROR_RESP);
     g_assert_cmpint(error, == ,RADIO_ERROR_GENERIC_FAILURE);
-    g_assert(!test->completed);
-    g_assert(!test->destroyed);
-    test->completed = TRUE;
+    test->completed++;
 }
 
 static
 void
-test_retry(
+test_retry1(
     void)
 {
     TestSimple test;
@@ -1681,6 +1683,52 @@ test_retry2(
     g_assert(test.destroyed);
 
     /* Cleanup */
+    test_simple_cleanup(&test);
+}
+
+static
+void
+test_retry3(
+    void)
+{
+    int i;
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req1 = radio_request_new(client, OK_REQ, NULL,
+        test_simple_complete_ok_cb, test_simple_destroy_cb, &test);
+    RadioRequest* req2 = radio_request_new2(group, ERROR_REQ, NULL,
+        test_retry_complete_cb, test_simple_destroy_cb, &test);
+
+    test.stop_destroy_count = 2;
+    test_common_connected(&test.common);
+
+    /* Submit groupless req1 first */
+    radio_request_set_timeout(req1, TEST_TIMEOUT_MS * 2);
+    g_assert_true(radio_request_submit(req1));
+
+    radio_request_set_timeout(req2, TEST_TIMEOUT_MS * 2);
+    radio_request_set_retry(req2, 10, TEST_RETRY_COUNT);
+    g_assert_true(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+
+    /* Use all retries */
+    for (i = 0; i < TEST_RETRY_COUNT; i++) {
+        g_assert_true(radio_request_retry(req2));
+        g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+    }
+
+    g_assert_false(radio_request_retry(req2));
+    radio_request_unref(req2);
+    radio_request_unref(req1);
+
+    test_run(&test_opt, test.loop);
+
+    g_assert_cmpuint(test.completed, == ,2);
+    g_assert_cmpuint(test.destroyed, == ,2);
+
+    /* Cleanup */
+    radio_request_group_unref(group);
     test_simple_cleanup(&test);
 }
 
@@ -2184,8 +2232,9 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("block/2"), test_block2);
     g_test_add_func(TEST_("block/timeout"), test_block_timeout);
     g_test_add_func(TEST_("block/retry"), test_block_retry);
-    g_test_add_func(TEST_("retry"), test_retry);
-    g_test_add_func(TEST_("retry2"), test_retry2);
+    g_test_add_func(TEST_("retry/1"), test_retry1);
+    g_test_add_func(TEST_("retry/2"), test_retry2);
+    g_test_add_func(TEST_("retry/3"), test_retry3);
     g_test_add_func(TEST_("fail"), test_fail);
     g_test_add_func(TEST_("fail_tx"), test_fail_tx);
     g_test_add_func(TEST_("err"), test_err);

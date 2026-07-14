@@ -615,6 +615,7 @@ radio_base_retry_request(
         radio_base_can_retry(req)) {
         RadioBasePriv* priv = self->priv;
 
+        g_hash_table_remove(priv->pending, KEY(req->serial2));
         radio_base_cancel_request(self, req);
         req->retry_count++;
         radio_base_queue_request(priv, req);
