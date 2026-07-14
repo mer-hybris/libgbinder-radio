@@ -1,3 +1,9 @@
+libgbinder-radio (1.6.6) unstable; urgency=medium
+
+  * Minor bug fix
+
+ -- Slava Monich <slava.monich@jolla.com>  Wed, 15 Jul 2026 02:02:36 +0300
+
 libgbinder-radio (1.6.5) unstable; urgency=medium
 
   * Added radio_client_req/resp/ind_name() API
