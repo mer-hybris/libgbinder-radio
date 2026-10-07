@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2022 Jolla Ltd.
  * Copyright (C) 2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -122,6 +123,10 @@ G_STATIC_ASSERT(sizeof(RadioModemsConfig) == 1);
 
 /* Transaction codes */
 
+/* r(code,reqName,REQ_NAME) */
+#define RADIO_CONFIG_REQ_1_0(r) \
+    r(1,setResponseFunctions,SET_RESPONSE_FUNCTIONS) /* Since 1.7.0 */
+
 /* c(req,resp,Name,CALL_NAME) */
 #define RADIO_CONFIG_CALL_1_0(c) \
     c(2,1,getSimSlotsStatus,GET_SIM_SLOTS_STATUS) \
@@ -133,20 +138,26 @@ G_STATIC_ASSERT(sizeof(RadioModemsConfig) == 1);
     c(6,5,setModemsConfig,SET_MODEMS_CONFIG) \
     c(7,6,getModemsConfig,GET_MODEMS_CONFIG)
 
-/* i(code,Name,IND_NAME) */
+/* i(code,indName,IND_NAME) */
 #define RADIO_CONFIG_IND_1_0(i) \
     i(1,simSlotsStatusChanged,SIM_SLOTS_STATUS_CHANGED)
 
 #define RADIO_CONFIG_IND_1_2(i) \
     i(2,simSlotsStatusChanged_1_2,SIM_SLOTS_STATUS_CHANGED_1_2) /* Since 1.5.0 */
 
+/* r(code,respName,RESP_NAME) */
+#define RADIO_CONFIG_RESP_1_2(r) \
+    r(7,getSimSlotsStatusResponse_1_2,GET_SIM_SLOTS_STATUS_1_2) /* Since 1.7.0 */
+
 typedef enum radio_config_req {
     RADIO_CONFIG_REQ_ANY = 0,
     RADIO_CONFIG_REQ_NONE = 0,
-#define RADIO_CONFIG_REQ_(req,resp,Name,NAME) RADIO_CONFIG_REQ_##NAME = req,
 
     /* android.hardware.radio.config@1.0::IRadioConfig */
-    RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS = 1, /* setResponseFunctions */
+#define RADIO_CONFIG_REQ_(req,Name,NAME) RADIO_CONFIG_REQ_##NAME = req,
+    RADIO_CONFIG_REQ_1_0(RADIO_CONFIG_REQ_)
+#undef RADIO_CONFIG_REQ_
+#define RADIO_CONFIG_REQ_(req,resp,Name,NAME) RADIO_CONFIG_REQ_##NAME = req,
     RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_REQ_)
     RADIO_CONFIG_1_0_REQ_LAST = RADIO_CONFIG_REQ_SET_SIM_SLOTS_MAPPING,
 
@@ -161,9 +172,9 @@ G_STATIC_ASSERT(sizeof(RADIO_CONFIG_REQ) == 4);
 typedef enum radio_config_resp {
     RADIO_CONFIG_RESP_ANY = 0,
     RADIO_CONFIG_RESP_NONE = 0,
-#define RADIO_CONFIG_RESP_(req,resp,Name,NAME) RADIO_CONFIG_RESP_##NAME = resp,
 
     /* android.hardware.radio.config@1.0::IRadioConfigResponse */
+#define RADIO_CONFIG_RESP_(req,resp,Name,NAME) RADIO_CONFIG_RESP_##NAME = resp,
     RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_RESP_)
     RADIO_CONFIG_1_0_RESP_LAST = RADIO_CONFIG_RESP_SET_SIM_SLOTS_MAPPING,
 
@@ -172,7 +183,9 @@ typedef enum radio_config_resp {
     RADIO_CONFIG_1_1_RESP_LAST = RADIO_CONFIG_RESP_GET_MODEMS_CONFIG,
 
     /* android.hardware.radio.config@1.2::IRadioConfigResponse */
-    RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2 = 7, /* Since 1.5.0 */
+#undef RADIO_CONFIG_RESP_
+#define RADIO_CONFIG_RESP_(resp,Name,NAME) RADIO_CONFIG_RESP_##NAME = resp,
+    RADIO_CONFIG_RESP_1_2(RADIO_CONFIG_RESP_) /* Since 1.5.0 */
     RADIO_CONFIG_1_2_RESP_LAST = RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2
 #undef RADIO_CONFIG_RESP_
 } RADIO_CONFIG_RESP;
@@ -181,9 +194,9 @@ G_STATIC_ASSERT(sizeof(RADIO_CONFIG_RESP) == 4);
 typedef enum radio_config_ind {
     RADIO_CONFIG_IND_ANY = 0,
     RADIO_CONFIG_IND_NONE = 0,
-#define RADIO_CONFIG_IND_(code,Name,NAME) RADIO_CONFIG_IND_##NAME = code,
 
     /* android.hardware.radio.config@1.0::IRadioConfigIndication */
+#define RADIO_CONFIG_IND_(code,Name,NAME) RADIO_CONFIG_IND_##NAME = code,
     RADIO_CONFIG_IND_1_0(RADIO_CONFIG_IND_)
     RADIO_CONFIG_1_0_IND_LAST = RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED,
 

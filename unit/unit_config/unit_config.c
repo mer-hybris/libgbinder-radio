@@ -468,7 +468,7 @@ test_basic(
     void)
 {
     TestCommon test;
-    RADIO_CONFIG_INTERFACE version = RADIO_CONFIG_INTERFACE_1_0;
+    RADIO_CONFIG_INTERFACE version = RADIO_CONFIG_INTERFACE_1_1;
     RadioConfig* client = test_common_init(&test, version);
     RadioRequest* req;
     int destroyed = 0;
@@ -520,7 +520,7 @@ test_basic(
 typedef struct test_ind_data {
     TestCommon common;
     GMainLoop* loop;
-    RADIO_CONFIG_IND ind;
+    int n;
 } TestInd;
 
 static
@@ -536,8 +536,8 @@ test_ind_cb(
     /* This one is invoked first */
     GDEBUG("first indication  %d", code);
     g_assert_cmpint(code, == ,RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED);
-    g_assert_cmpint(test->ind, == ,RADIO_CONFIG_IND_NONE);
-    test->ind = code;
+    g_assert_cmpint(test->n % 2, == ,0);
+    test->n++;
 }
 
 static
@@ -552,8 +552,9 @@ test_ind_cb2(
 
     /* This one is invoked second */
     GDEBUG("second indication %d", code);
-    g_assert_cmpint(test->ind, == ,RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED);
     g_assert_cmpint(code, == ,RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED);
+    g_assert_cmpint(test->n % 2, == ,1);
+    test->n++;
     test_quit_later(test->loop);
 }
 
@@ -620,7 +621,7 @@ test_ind(
 
     /* And wait for test_ind_cb2 to terminate the loop */
     test_run(&test_opt, test.loop);
-    g_assert_cmpint(test.ind, == ,RADIO_CONFIG_IND_SIM_SLOTS_STATUS_CHANGED);
+    g_assert_cmpint(test.n, == ,4);
 
     /* Cleanup */
     radio_config_remove_all_handlers(client, id);
@@ -767,7 +768,7 @@ test_cancel(
 {
     TestCommon test;
     gboolean destroyed = FALSE;
-    RadioConfig* client = test_common_init(&test, RADIO_CONFIG_INTERFACE_1_0);
+    RadioConfig* client = test_common_init(&test, RADIO_CONFIG_INTERFACE_1_1);
     RadioRequest* req = radio_config_request_new(client,
         RADIO_CONFIG_REQ_GET_MODEMS_CONFIG, NULL,
         test_complete_not_reached, test_destroy_once, &destroyed);
@@ -792,7 +793,7 @@ test_fail_tx(
 {
     TestCommon test;
     gboolean destroyed = FALSE;
-    RadioConfig* client = test_common_init(&test, RADIO_CONFIG_INTERFACE_1_0);
+    RadioConfig* client = test_common_init(&test, RADIO_CONFIG_INTERFACE_1_1);
     RadioRequest* req = radio_config_request_new(client,
         RADIO_CONFIG_REQ_GET_MODEMS_CONFIG, NULL,
         test_complete_not_reached, test_destroy_once, &destroyed);
