@@ -9,7 +9,7 @@ Source: %{name}-%{version}.tar.bz2
 
 %define glib_version 2.32
 %define libgbinder_version 1.1.42
-%define libglibutil_version 1.0.49
+%define libglibutil_version 1.0.83
 
 BuildRequires: pkgconfig
 BuildRequires: pkgconfig(glib-2.0) >= %{glib_version}
@@ -56,14 +56,12 @@ make -C unit test
 %postun -p /sbin/ldconfig
 
 %files
-%defattr(-,root,root,-)
 %{_libdir}/%{name}.so.*
 %if %{license_support} == 0
 %license LICENSE
 %endif
 
 %files devel
-%defattr(-,root,root,-)
 %{_libdir}/pkgconfig/*.pc
 %{_libdir}/%{name}.so
 %{_includedir}/gbinder-radio/*.h

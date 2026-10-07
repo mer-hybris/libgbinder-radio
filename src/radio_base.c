@@ -38,9 +38,13 @@
 #define GLIB_DISABLE_DEPRECATION_WARNINGS
 
 #include "radio_base.h"
+#include "radio_instance_p.h"
 #include "radio_request_p.h"
 #include "radio_util.h"
 #include "radio_log.h"
+
+#include <gutil_macros.h>
+#include <gutil_misc.h>
 
 /*
  * Requests are considered pending for no longer than pending_timeout
@@ -51,7 +55,18 @@
 
 #define KEY(serial) GUINT_TO_POINTER(serial)
 
+enum radio_instance_events {
+    RADIO_EVENT_RESP,
+    RADIO_EVENT_ACK,
+    RADIO_EVENT_IND,
+    RADIO_EVENT_DEATH,
+    RADIO_EVENT_CONNECTED,
+    RADIO_EVENT_COUNT
+};
+
 struct radio_base_priv {
+    gulong event_ids[RADIO_EVENT_COUNT];
+
     GHashTable* requests;       /* All requests (weak references)  */
     GHashTable* active;         /* Requests in QUEUED and PENDING states  */
     GHashTable* pending;        /* Requests in PENDING state  */
@@ -73,10 +88,16 @@ G_DEFINE_ABSTRACT_TYPE(RadioBase, radio_base, G_TYPE_OBJECT)
 
 enum radio_base_signal {
     SIGNAL_OWNER,
+    SIGNAL_CONNECTED,
+    SIGNAL_INDICATION,
+    SIGNAL_DEATH,
     SIGNAL_COUNT
 };
 
 #define SIGNAL_OWNER_NAME      "radio-base-owner"
+#define SIGNAL_CONNECTED_NAME  "radio-base-connected"
+#define SIGNAL_INDICATION_NAME "radio-base-indication"
+#define SIGNAL_DEATH_NAME      "radio-base-death"
 
 static guint radio_base_signals[SIGNAL_COUNT] = { 0 };
 
@@ -240,16 +261,30 @@ radio_base_request_failed(
 static
 void
 radio_base_request_sent(
-    RadioBase* self,
-    RadioRequest* req,
-    int status)
+    RadioInstance* instance,
+    gulong id,
+    int status,
+    void* user_data1,
+    void* user_data2)
 {
+    RadioBase* self = THIS(user_data1);
+    RadioRequest* req = user_data2;
+
     req->tx_id = 0;
     if (status != GBINDER_STATUS_OK) {
         g_object_ref(self);
         radio_base_request_failed(self, req);
         g_object_unref(self);
     }
+}
+
+static
+void
+radio_base_request_done(
+    void* user_data1,
+    void* user_data2)
+{
+    radio_request_unref(user_data2);
 }
 
 static
@@ -288,8 +323,10 @@ radio_base_submit_transaction(
     }
 
     /* Actually submit the transaction */
-    req->tx_id = RADIO_BASE_GET_CLASS(self)->send_request(self, req,
-        radio_base_request_sent);
+    req->tx_id = radio_instance_send_request(self->instance,
+        req->code, req->args, radio_base_request_sent,
+        radio_base_request_done, self, radio_request_ref(req));
+
     if (req->tx_id) {
         req->scheduled = 0; /* Not scheduled anymore */
         req->state = RADIO_REQUEST_STATE_PENDING;
@@ -297,6 +334,7 @@ radio_base_submit_transaction(
             radio_request_ref(req));
         return TRUE;
     } else {
+        radio_request_unref(req);
         return FALSE;
     }
 }
@@ -425,7 +463,7 @@ radio_base_submit_queued_requests(
     RadioBasePriv* priv = self->priv;
     guint submitted = 0;
 
-    if (RADIO_BASE_GET_CLASS(self)->can_submit_requests(self)) {
+    if (self->instance->connected) {
         RadioRequest* prev = NULL;
         RadioRequest* req = priv->queue_first;
         const gint64 now = g_get_monotonic_time();
@@ -528,14 +566,189 @@ radio_base_timeout(
     return G_SOURCE_REMOVE;
 }
 
+static
+void
+radio_base_connected_handler(
+    RadioInstance* instance,
+    gpointer user_data)
+{
+    RadioBase* self = THIS(user_data);
+
+    g_signal_emit(self, radio_base_signals[SIGNAL_CONNECTED], 0);
+    if (radio_base_submit_queued_requests(self)) {
+        radio_base_reset_timeout(self);
+    }
+}
+
+static
+void
+radio_base_resp_handler(
+    RadioInstance* radio,
+    RADIO_RESP code,
+    const RadioResponseInfo* info,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    RadioBase* self = THIS(user_data);
+    RadioBasePriv* priv = self->priv;
+    RadioRequest* req = g_hash_table_lookup(priv->active, KEY(info->serial));
+
+    if (req) {
+        RadioRequestRetryFunc retry = req->retry;
+
+        /* Temporary ref */
+        g_object_ref(self);
+
+        /* It's no longer pending */
+        g_hash_table_remove(priv->pending, KEY(info->serial));
+
+        /* Response may come before completion of the request */
+        radio_base_cancel_request(self, req);
+
+        /* Do we need to retry? */
+        if (radio_base_can_retry(req) && retry(req, RADIO_TX_STATUS_OK,
+            code, info->error, reader, req->user_data)) {
+            /* Re-queue the request */
+            req->retry_count++;
+            req->scheduled = g_get_monotonic_time() +
+                MICROSEC(req->retry_delay_ms);
+            radio_base_queue_request(priv, req);
+        } else if (g_hash_table_steal(priv->active, KEY(info->serial))) {
+            req->state = RADIO_REQUEST_STATE_DONE;
+            radio_base_deactivate_request(self, req);
+            radio_base_move_owner_queue(self);
+            if (req->complete) {
+                RadioRequestCompleteFunc fn = req->complete;
+
+                req->complete = NULL;
+                fn(req, RADIO_TX_STATUS_OK, code, info->error, reader,
+                    req->user_data);
+            }
+            radio_request_unref(req);
+        }
+
+        radio_base_submit_queued_requests(self);
+        radio_base_reset_timeout(self);
+        g_object_unref(self);
+    } else {
+        const char* name = radio_resp_name2(self->instance, code);
+
+        /* Most likely, the corresponding request was cancelled */
+        GDEBUG("Ignoring response [%08x] %u %s", info->serial, code,
+            name ? name : "");
+    }
+}
+
+static
+void
+radio_base_ack_handler(
+    RadioInstance* radio,
+    guint32 serial,
+    gpointer user_data)
+{
+    RadioBase* self = THIS(user_data);
+    RadioBasePriv* priv = self->priv;
+    RadioRequest* req = g_hash_table_lookup(priv->active, KEY(serial));
+
+    if (req) {
+        GDEBUG("%08x acked", serial);
+        req->acked = TRUE;
+    } else {
+        GWARN("%08x unexpected ack", serial);
+    }
+}
+
+static
+void
+radio_base_indication_handler(
+    RadioInstance* instance,
+    RADIO_IND code,
+    RADIO_IND_TYPE type,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    g_signal_emit(THIS(user_data), radio_base_signals[SIGNAL_INDICATION],
+        radio_instance_ind_quark(instance, code), code, reader);
+}
+
+static
+void
+radio_base_death_handler(
+    RadioInstance* instance,
+    gpointer user_data)
+{
+    RadioBase* self = THIS(user_data);
+    RadioBasePriv* priv = self->priv;
+    RadioRequest* dead = NULL;
+    RadioRequest* req;
+    GHashTableIter it;
+    gpointer value;
+
+    /*
+     * We are going to empty the queue and reuse queue_next link to
+     * build the list of dead requests.
+     */
+    priv->queue_first = priv->queue_last = NULL;
+
+    /* Steal all active requests from the table */
+    g_hash_table_remove_all(priv->pending);
+    g_hash_table_iter_init(&it, priv->active);
+    while (g_hash_table_iter_next(&it, NULL, &value)) {
+        req = value;
+        GDEBUG("Dropping request %u (%08x/%08x) due to radio death",
+            req->code, req->serial, req->serial2);
+
+        /* Don't unref them just yet */
+        g_hash_table_iter_steal(&it);
+
+        /*
+         * Make sure that request state isn't RADIO_REQUEST_STATE_QUEUED,
+         * so that we can safely reuse queue_next link.
+         */
+        req->state = RADIO_REQUEST_STATE_QUEUED;
+        req->queue_next = dead;
+        dead = req;
+    }
+
+    while (dead) {
+        /* Fail the dead request and drop the stolen ref */
+        req = dead;
+        dead = req->queue_next;
+        req->queue_next = NULL;
+        radio_base_request_failed(self, req);
+        radio_request_unref(req);
+    }
+
+    g_signal_emit(self, radio_base_signals[SIGNAL_DEATH], 0);
+}
+
 /*==========================================================================*
  * Internal API
  *==========================================================================*/
 
 void
 radio_base_initialize(
-    RadioBase* self)
+    RadioBase* self,
+    RadioInstance* instance)
 {
+    RadioBasePriv* priv = self->priv;
+
+    self->instance = radio_instance_ref(instance);
+    priv->event_ids[RADIO_EVENT_RESP] =
+        radio_instance_add_response_observer(instance, RADIO_RESP_ANY,
+            radio_base_resp_handler, self);
+    priv->event_ids[RADIO_EVENT_ACK] =
+        radio_instance_add_ack_handler(instance,
+            radio_base_ack_handler, self);
+    priv->event_ids[RADIO_EVENT_IND] =
+        radio_instance_add_indication_observer(instance, RADIO_IND_ANY,
+            radio_base_indication_handler, self);
+    priv->event_ids[RADIO_EVENT_DEATH] =
+        radio_instance_add_death_handler(instance,
+            radio_base_death_handler, self);
+    priv->event_ids[RADIO_EVENT_CONNECTED] =
+        radio_instance_add_connected_handler(instance,
+            radio_base_connected_handler, self);
 }
 
 void
@@ -578,8 +791,7 @@ radio_base_submit_request(
      * base is dead, request stays in the NEW state and can be resubmitted
      * later (not sure if this is a useful feature though).
      */
-    if (req->state == RADIO_REQUEST_STATE_NEW &&
-        !RADIO_BASE_GET_CLASS(self)->is_dead(self)) {
+    if (req->state == RADIO_REQUEST_STATE_NEW && !self->instance->dead) {
         RadioBasePriv* priv = self->priv;
         RadioRequestCompleteFunc complete = req->complete;
         const guint timeout = radio_base_timeout_ms(self, req);
@@ -692,9 +904,7 @@ radio_base_reset_timeout(
                 (guint)(((next_wakeup - now) + 999)/1000) : 0;
 
             /* Start or restart the timer (should it be suspend-aware?) */
-            if (priv->timeout_id) {
-                g_source_remove(priv->timeout_id);
-            }
+            gutil_source_remove(priv->timeout_id);
             GVERBOSE("Next timeout check in %u ms", timeout_ms);
             priv->next_wakeup = next_wakeup;
             priv->timeout_id = timeout_ms ?
@@ -703,10 +913,7 @@ radio_base_reset_timeout(
         }
     } else {
         /* No more pending requests, cancel the timeout */
-        if (priv->timeout_id) {
-            g_source_remove(priv->timeout_id);
-            priv->timeout_id = 0;
-        }
+        gutil_source_clear(&priv->timeout_id);
     }
 }
 
@@ -779,130 +986,6 @@ radio_base_unblock(
     }
 }
 
-gboolean
-radio_base_handle_resp(
-    RadioBase* self,
-    guint32 code,
-    const RadioResponseInfo* info,
-    const GBinderReader* reader)
-{
-    RadioBasePriv* priv = self->priv;
-    RadioRequest* req = g_hash_table_lookup(priv->active, KEY(info->serial));
-
-    if (req) {
-        RadioRequestRetryFunc retry = req->retry;
-
-        /* Temporary ref */
-        g_object_ref(self);
-
-        /* It's no longer pending */
-        g_hash_table_remove(priv->pending, KEY(info->serial));
-
-        /* Response may come before completion of the request */
-        radio_base_cancel_request(self, req);
-
-        /* Do we need to retry? */
-        if (radio_base_can_retry(req) && retry(req, RADIO_TX_STATUS_OK,
-            code, info->error, reader, req->user_data)) {
-            /* Re-queue the request */
-            req->retry_count++;
-            req->scheduled = g_get_monotonic_time() +
-                MICROSEC(req->retry_delay_ms);
-            radio_base_queue_request(priv, req);
-        } else if (g_hash_table_steal(priv->active, KEY(info->serial))) {
-            req->state = RADIO_REQUEST_STATE_DONE;
-            radio_base_deactivate_request(self, req);
-            radio_base_move_owner_queue(self);
-            if (req->complete) {
-                RadioRequestCompleteFunc fn = req->complete;
-
-                req->complete = NULL;
-                fn(req, RADIO_TX_STATUS_OK, code, info->error, reader,
-                    req->user_data);
-            }
-            radio_request_unref(req);
-        }
-
-        radio_base_submit_queued_requests(self);
-        radio_base_reset_timeout(self);
-        g_object_unref(self);
-        return TRUE;
-    }
-    /* Most likely, the corresponding request was cancelled */
-    return FALSE;
-}
-
-void
-radio_base_handle_ack(
-    RadioBase* self,
-    guint32 serial)
-{
-    RadioBasePriv* priv = self->priv;
-    RadioRequest* req = g_hash_table_lookup(priv->active, KEY(serial));
-
-    if (req) {
-        GDEBUG("%08x acked", serial);
-        req->acked = TRUE;
-    } else {
-        GWARN("%08x unexpected ack", serial);
-    }
-}
-
-void
-radio_base_handle_death(
-    RadioBase* self)
-{
-    RadioBasePriv* priv = self->priv;
-    RadioRequest* dead = NULL;
-    RadioRequest* req;
-    GHashTableIter it;
-    gpointer value;
-
-    /*
-     * We are going to empty the queue and reuse queue_next link to
-     * build the list of dead requests.
-     */
-    priv->queue_first = priv->queue_last = NULL;
-
-    /* Steal all active requests from the table */
-    g_hash_table_remove_all(priv->pending);
-    g_hash_table_iter_init(&it, priv->active);
-    while (g_hash_table_iter_next(&it, NULL, &value)) {
-        req = value;
-        GDEBUG("Dropping request %u (%08x/%08x) due to radio death",
-            req->code, req->serial, req->serial2);
-
-        /* Don't unref them just yet */
-        g_hash_table_iter_steal(&it);
-
-        /*
-         * Make sure that request state isn't RADIO_REQUEST_STATE_QUEUED,
-         * so that we can safely reuse queue_next link.
-         */
-        req->state = RADIO_REQUEST_STATE_QUEUED;
-        req->queue_next = dead;
-        dead = req;
-    }
-
-    while (dead) {
-        /* Fail the dead request and drop the stolen ref */
-        req = dead;
-        dead = req->queue_next;
-        req->queue_next = NULL;
-        radio_base_request_failed(self, req);
-        radio_request_unref(req);
-    }
-}
-
-void
-radio_base_submit_requests(
-    RadioBase* self)
-{
-    if (radio_base_submit_queued_requests(self)) {
-        radio_base_reset_timeout(self);
-    }
-}
-
 void
 radio_base_cancel_request(
     RadioBase* self,
@@ -910,7 +993,7 @@ radio_base_cancel_request(
 {
     req->scheduled = 0;
     if (req->tx_id) {
-        RADIO_BASE_GET_CLASS(self)->cancel_request(self, req->tx_id);
+        radio_instance_cancel_request(self->instance, req->tx_id);
         req->tx_id = 0;
     }
 }
@@ -920,7 +1003,7 @@ radio_base_set_default_timeout(
     RadioBase* self,
     int ms)
 {
-    /* Caller checks object pointer for NULL */
+    /* Caller checks the object pointer for NULL */
     RadioBasePriv* priv = self->priv;
 
     if (ms <= 0) {
@@ -956,10 +1039,49 @@ radio_base_add_owner_changed_handler(
     RadioBaseFunc fn,
     gpointer user_data)
 {
-    /* Caller checks object pointer for NULL */
+    /* Caller checks the object pointer for NULL */
+    return G_LIKELY(fn) ? g_signal_connect_closure_by_id(self,
+        radio_base_signals[SIGNAL_OWNER], 0,
+        g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
+}
+
+gulong
+radio_base_add_connected_handler(
+    RadioBase* self,
+    RadioBaseFunc fn,
+    gpointer user_data)
+{
+    /* Caller checks the object pointer for NULL */
+    return G_LIKELY(fn) ? g_signal_connect_closure_by_id(self,
+        radio_base_signals[SIGNAL_CONNECTED], 0,
+        g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
+}
+
+gulong
+radio_base_add_indication_handler(
+    RadioBase* self,
+    guint code,
+    RadioBaseIndicationFunc fn,
+    gpointer user_data)
+{
+    /* Caller checks the object pointer for NULL */
     return G_LIKELY(fn) ?
-        g_signal_connect_closure_by_id(self, radio_base_signals[SIGNAL_OWNER],
-             0, g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
+        g_signal_connect_closure_by_id(self,
+            radio_base_signals[SIGNAL_INDICATION],
+            radio_instance_ind_quark(self->instance, code),
+            g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
+}
+
+gulong
+radio_base_add_death_handler(
+    RadioBase* self,
+    RadioBaseFunc fn,
+    gpointer user_data)
+{
+    /* Caller checks the object pointer for NULL */
+    return G_LIKELY(fn) ? g_signal_connect_closure_by_id(self,
+        radio_base_signals[SIGNAL_DEATH], 0,
+        g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
 }
 
 /*==========================================================================*
@@ -991,13 +1113,13 @@ radio_base_object_finalize(
     RadioBase* self = THIS(object);
     RadioBasePriv* priv = self->priv;
 
-    if (priv->timeout_id) {
-        g_source_remove(priv->timeout_id);
-    }
+    gutil_source_remove(priv->timeout_id);
     g_hash_table_foreach(priv->requests, radio_base_detach_req, self);
     g_hash_table_destroy(priv->requests);
     g_hash_table_destroy(priv->active);
     g_hash_table_destroy(priv->pending);
+    radio_instance_remove_all_handlers(self->instance, priv->event_ids);
+    radio_instance_unref(self->instance);
     G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
 }
 
@@ -1006,11 +1128,23 @@ void
 radio_base_class_init(
     RadioBaseClass* klass)
 {
+    GType type = G_OBJECT_CLASS_TYPE(klass);
+
     g_type_class_add_private(klass, sizeof(RadioBasePriv));
     G_OBJECT_CLASS(klass)->finalize = radio_base_object_finalize;
-    radio_base_signals[SIGNAL_OWNER] = g_signal_new(SIGNAL_OWNER_NAME,
-        G_OBJECT_CLASS_TYPE(klass), G_SIGNAL_RUN_FIRST, 0, NULL, NULL, NULL,
-        G_TYPE_NONE, 0);
+    radio_base_signals[SIGNAL_OWNER] =
+        g_signal_new(SIGNAL_OWNER_NAME, type, G_SIGNAL_RUN_FIRST, 0,
+            NULL, NULL, NULL, G_TYPE_NONE, 0);
+    radio_base_signals[SIGNAL_CONNECTED] =
+        g_signal_new(SIGNAL_CONNECTED_NAME, type, G_SIGNAL_RUN_FIRST, 0,
+            NULL, NULL, NULL, G_TYPE_NONE, 0);
+    radio_base_signals[SIGNAL_DEATH] =
+        g_signal_new(SIGNAL_DEATH_NAME, type, G_SIGNAL_RUN_FIRST, 0,
+            NULL, NULL, NULL, G_TYPE_NONE, 0);
+    radio_base_signals[SIGNAL_INDICATION] =
+        g_signal_new(SIGNAL_INDICATION_NAME, type,
+            G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED, 0, NULL, NULL, NULL,
+            G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_POINTER);
 }
 
 /*

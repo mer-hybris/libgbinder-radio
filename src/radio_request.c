@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2026 Slava Monich <slava@monich.com>
  * Copyright (C) 2021-2022 Jolla Ltd.
  *
@@ -38,6 +39,7 @@
  */
 
 #include "radio_base.h"
+#include "radio_instance.h"
 #include "radio_request_p.h"
 #include "radio_request_group_p.h"
 #include "radio_log.h"
@@ -154,36 +156,43 @@ RadioRequest*
 radio_request_object_new(
     RadioBase* base,
     RadioRequestGroup* group,
-    RADIO_REQ code,
+    guint32 code,
     GBinderWriter* writer,
     RadioRequestGenericCompleteFunc complete,
     GDestroyNotify destroy,
     void* user_data)
 {
-    RadioRequestObject* self = g_slice_new0(RadioRequestObject);
-    RadioRequest* req = &self->pub;
-    GBinderWriter tmp;
+    RadioRequest* req = NULL;
+    GBinderLocalRequest* args =
+        radio_instance_new_request(base->instance, code);
 
-    self->destroy = destroy;
-    g_atomic_int_set(&self->refcount, 1);
+    /* radio_instance_new_request() may fail is the tx code is out of range */
+    if (args) {
+        GBinderWriter tmp;
+        RadioRequestObject* self = g_slice_new0(RadioRequestObject);
 
-    req->state = RADIO_REQUEST_STATE_NEW;
-    req->code = code;
-    req->complete = complete;
-    req->user_data = user_data;
-    req->retry = radio_request_default_retry;
+        self->destroy = destroy;
+        g_atomic_int_set(&self->refcount, 1);
 
-    /* Assign serial and add to the group */
-    radio_base_register_request(base, req);
-    radio_request_group_add(group, req);
-    GVERBOSE_("%u (%08x) %p group %p", req->code, req->serial, req, group);
+        req = &self->pub;
+        req->state = RADIO_REQUEST_STATE_NEW;
+        req->code = code;
+        req->args = args;
+        req->complete = complete;
+        req->user_data = user_data;
+        req->retry = radio_request_default_retry;
 
-    /* Build the argument list */
-    if (!writer) writer = &tmp;
-    req->args = RADIO_BASE_GET_CLASS(base)->new_request(base, code);
-    gbinder_local_request_init_writer(req->args, writer);
-    self->serial_offset = gbinder_writer_bytes_written(writer);
-    gbinder_writer_append_int32(writer, req->serial);
+        /* Assign serial and add to the group */
+        radio_base_register_request(base, req);
+        radio_request_group_add(group, req);
+        GVERBOSE_("%u (%08x) %p group %p", req->code, req->serial, req, group);
+
+        /* Build the argument list */
+        if (!writer) writer = &tmp;
+        gbinder_local_request_init_writer(req->args, writer);
+        self->serial_offset = gbinder_writer_bytes_written(writer);
+        gbinder_writer_append_int32(writer, req->serial);
+    }
     return req;
 }
 

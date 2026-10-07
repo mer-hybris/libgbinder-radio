@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2022 Jolla Ltd.
  * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -41,11 +42,23 @@
 
 #include <glib-object.h>
 
-/* RadioBaseFunc must be compatible with RadioClientFunc */
+/*
+ * RadioBaseFunc must be compatible with RadioClientFunc and
+ * RadioConfigFunc
+ */
 typedef
 void
 (*RadioBaseFunc)(
     RadioBase* base,
+    gpointer user_data);
+
+/* And RadioBaseIndicationFunc with RadioClientIndicationFunc */
+typedef
+void
+(*RadioBaseIndicationFunc)(
+    RadioBase* base,
+    guint ind,
+    const GBinderReader* reader,
     gpointer user_data);
 
 typedef
@@ -55,22 +68,14 @@ void
     RadioRequest* req,
     int status);
 
+typedef GObjectClass RadioBaseClass;
 typedef struct radio_base_priv RadioBasePriv;
 
 struct radio_base {
     GObject object;
+    RadioInstance* instance;
     RadioBasePriv* priv;
 };
-
-typedef struct radio_base_class {
-    GObjectClass parent;
-    gboolean (*is_dead)(RadioBase* base);
-    gboolean (*can_submit_requests)(RadioBase* base);
-    GBinderLocalRequest* (*new_request)(RadioBase* base, guint32 code);
-    gulong (*send_request)(RadioBase* base, RadioRequest* req,
-        RadioBaseRequestSentFunc sent);
-    void (*cancel_request)(RadioBase* base, gulong id);
-} RadioBaseClass;
 
 GType radio_base_get_type(void) RADIO_INTERNAL;
 #define RADIO_TYPE_BASE radio_base_get_type()
@@ -83,7 +88,8 @@ GType radio_base_get_type(void) RADIO_INTERNAL;
 
 void
 radio_base_initialize(
-    RadioBase* base)
+    RadioBase* base,
+    RadioInstance* instance)
     RADIO_INTERNAL;
 
 void
@@ -144,30 +150,6 @@ radio_base_unblock(
     RadioRequestGroup* group)
     RADIO_INTERNAL;
 
-gboolean
-radio_base_handle_resp(
-    RadioBase* base,
-    guint32 code,
-    const RadioResponseInfo* info,
-    const GBinderReader* reader)
-    RADIO_INTERNAL;
-
-void
-radio_base_handle_ack(
-    RadioBase* base,
-    guint32 serial)
-    RADIO_INTERNAL;
-
-void
-radio_base_handle_death(
-    RadioBase* base)
-    RADIO_INTERNAL;
-
-void
-radio_base_submit_requests(
-    RadioBase* base)
-    RADIO_INTERNAL;
-
 void
 radio_base_cancel_request(
     RadioBase* base,
@@ -181,7 +163,29 @@ radio_base_set_default_timeout(
     RADIO_INTERNAL;
 
 gulong
+radio_base_add_connected_handler(
+    RadioBase* base,
+    RadioBaseFunc func,
+    gpointer user_data)
+    RADIO_INTERNAL;
+
+gulong
+radio_base_add_indication_handler(
+    RadioBase* base,
+    guint ind,
+    RadioBaseIndicationFunc func,
+    gpointer user_data)
+    RADIO_INTERNAL;
+
+gulong
 radio_base_add_owner_changed_handler(
+    RadioBase* base,
+    RadioBaseFunc func,
+    gpointer user_data)
+    RADIO_INTERNAL;
+
+gulong
+radio_base_add_death_handler(
     RadioBase* base,
     RadioBaseFunc func,
     gpointer user_data)
