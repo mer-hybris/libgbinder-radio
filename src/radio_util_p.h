@@ -56,6 +56,12 @@ radio_read_response_info_aidl(
     GBinderReader* reader)
     RADIO_INTERNAL;
 
+const char*
+radio_find_tx_name(
+    const RadioTxName* names,
+    guint code)
+    RADIO_INTERNAL;
+
 #endif /* RADIO_UTIL_PRIVATE_H */
 
 /*

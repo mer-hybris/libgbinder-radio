@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2018-2022 Jolla Ltd.
  * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  * Copyright (C) 2021 Open Mobile Platform LLC.
@@ -48,35 +49,7 @@ typedef struct radio_instance RadioInstance;
 typedef struct radio_registry RadioRegistry;
 typedef struct radio_request RadioRequest;
 typedef struct radio_request_group RadioRequestGroup;
-
-typedef enum radio_block_status {
-    RADIO_BLOCK_NONE,
-    RADIO_BLOCK_QUEUED,
-    RADIO_BLOCK_ACQUIRED
-} RADIO_BLOCK; /* Since 1.4.3 */
-
-typedef enum radio_interface {
-    RADIO_INTERFACE_NONE = -1, /* Since 1.4.3 */
-    RADIO_INTERFACE_1_0,
-    RADIO_INTERFACE_1_1,
-    RADIO_INTERFACE_1_2,
-    RADIO_INTERFACE_1_3,
-    RADIO_INTERFACE_1_4,
-    RADIO_INTERFACE_1_5, /* Since 1.5.0 */
-    RADIO_INTERFACE_COUNT
-} RADIO_INTERFACE; /* Since 1.2.0 */
-
-typedef enum radio_aidl_interface {
-    RADIO_AIDL_INTERFACE_NONE = -1,
-    RADIO_DATA_INTERFACE,
-    RADIO_IMS_INTERFACE,
-    RADIO_MESSAGING_INTERFACE,
-    RADIO_MODEM_INTERFACE,
-    RADIO_NETWORK_INTERFACE,
-    RADIO_SIM_INTERFACE,
-    RADIO_VOICE_INTERFACE,
-    RADIO_AIDL_INTERFACE_COUNT
-} RADIO_AIDL_INTERFACE; /* Since 1.6.0 */
+typedef struct gbinder_client_iface_info RadioClientIfaceInfo;
 
 typedef enum radio_interface_type {
     RADIO_INTERFACE_TYPE_NONE,
@@ -84,11 +57,116 @@ typedef enum radio_interface_type {
     RADIO_INTERFACE_TYPE_AIDL,
 } RADIO_INTERFACE_TYPE; /* Since 1.6.0 */
 
-typedef enum radio_observer_priority {
-    RADIO_OBSERVER_PRIORITY_LOWEST,
-    RADIO_OBSERVER_PRIORITY_DEFAULT = 2,
-    RADIO_OBSERVER_PRIORITY_HIGHEST = 7
-} RADIO_OBSERVER_PRIORITY; /* Since 1.4.6 */
+/*
+ * RadioInterfaceDesc[2] allows to create custom RadioInstances which
+ * work with with radio interfaces other than the ones directly supported
+ * by this library, as long as those interfaces work the same way, roughly
+ * like this:
+ *
+ *       RadioRequest                RadioClientIndicationFunc
+ *      ==============               =========================
+ *        |         ^                           ^
+ *     submit()     |                           |
+ *        |         |                           |
+ *        |      complete()                     |
+ *        |         |                           |
+ * +------|---------|---------------------------|-----------+
+ * |      |         |     RadioInstance         |           |
+ * |      |    +=================+   +===================+  |
+ * |      |    | Response object |   | Indication object |  |
+ * |      |    | (resp_ifaces)   |   | (ind_ifaces)      |  |
+ * |      |    +=================+   +===================+  |
+ * |      |         ^                           ^           |
+ * +------|---------|---------------------------|-----------+
+ *        |         |                           |
+ *     Request      |                           |
+ *   (serial, ...)  |                           |
+ *        |         |                           |
+ * <------------------------- binder ----------------------->
+ *        |         |                           |
+ *        |       Response                      |
+ *        |  (RadioResponseInfo, ...)           |
+ *        |         |                           |
+ *        v         |                           |
+ *    +===================+                     |
+ *    | (req_iface)       |----- Indication ----+
+ *    | Radio service     |  (RadioResponseInfo, ...)
+ *    +===================+
+ *
+ * RadioServiceDesc2 is an extended version of RadioServiceDesc which
+ * allows multiple response/indication objects to be registered with
+ * the same remote object. Some vendor specific radio services need that.
+ */
+
+typedef struct radio_tx_name {
+    guint code;
+    const char* name;
+} RadioTxName; /* Since 1.7.0 */
+
+/* Terminates a RadioTxName array */
+#define RADIO_TX_NAMES_END  { 0, NULL } /* Since 1.7.0 */
+
+typedef struct radio_interface_desc {
+    const char* const* ifaces;   /* NULL terminated */
+    const RadioTxName* tx_names; /* Terminated by RADIO_TX_NAMES_END */
+} RadioInterfaceDesc; /* Since 1.7.0 */
+
+typedef struct radio_response_functions_desc {
+    const RadioInterfaceDesc* resp;
+    const RadioInterfaceDesc* ind;
+    guint set_response_functions_req;
+    guint connected_ind;
+} RadioResponseFunctionsDesc; /* Since 1.7.0 */
+
+/* Terminates a RadioResponseFunctionsDesc array */
+#define RADIO_RESPONSE_FUNCTIONS_END  { NULL, NULL, 0, 0 } /* Since 1.7.0 */
+
+/* Termanates a RadioClientIfaceInfo array */
+#define RADIO_IFACE_INFO_END  { NULL, 0 } /* Since 1.7.0 */
+
+typedef struct radio_service_desc {
+    RADIO_INTERFACE_TYPE interface_type;
+    const char* req_iface;
+    const RadioTxName* req_names;
+    const RadioClientIfaceInfo* iface_info;
+    const RadioInterfaceDesc* resp;
+    const RadioInterfaceDesc* ind;
+    guint set_response_functions_req;
+    guint ack_req;
+    guint resp_ack_req;
+    guint connected_ind;
+} RadioServiceDesc; /* Since 1.7.0 */
+
+typedef struct radio_service_desc2 {
+    RADIO_INTERFACE_TYPE interface_type;
+    const char* req_iface;
+    const RadioTxName* req_names;
+    const RadioClientIfaceInfo* iface_info;
+    const RadioResponseFunctionsDesc* resp_fn;
+    guint ack_req;
+    guint resp_ack_req;
+} RadioServiceDesc2; /* Since 1.7.0 */
+
+/*
+ * The "extended" response/indication code is composed of the interface
+ * specific transaction code (low 20 bit) and the RadioResponseFunctionsDesc
+ * index, from the range [0...resp_fn_count). Since the first index is 0,
+ * this scheme is nicely and naturally backward compatible. A non-zero
+ * receiver index can only appear if the RadioInstance was created with
+ * radio_instance_new_with_service_desc2()
+ *
+ * It leaves room for 1048575 transaction codes (zero is not a valid
+ * transaction code) and at least 4096 pairs of response/indication
+ * receivers. That's plenty.
+ *
+ * RADIO_TX_* macros exist since version 1.7.0
+ */
+#define RADIO_TX_INDEX_SHIFT    (20)
+#define RADIO_TX_CODE_MASK      ((1 << RADIO_TX_INDEX_SHIFT) - 1)
+#define RADIO_TX_INDEX(tx)      (((guint)(tx)) >> RADIO_TX_INDEX_SHIFT)
+#define RADIO_TX_CODE(code)     (((guint)(code)) & RADIO_TX_CODE_MASK)
+#define RADIO_TX_EXT_CODE(i,tx) (RADIO_TX_CODE(tx) ? \
+    ((((guint)(i)) << RADIO_TX_INDEX_SHIFT) | RADIO_TX_CODE(tx)) : 0)
 
 #define RADIO_IFACE_PREFIX     "android.hardware.radio@"
 #define RADIO_IFACE            "IRadio"
@@ -118,6 +196,41 @@ typedef enum radio_observer_priority {
 #define RADIO_INDICATION_1_3   RADIO_IFACE_1_3(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_4   RADIO_IFACE_1_4(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_5   RADIO_IFACE_1_5(RADIO_INDICATION_IFACE)
+
+typedef enum radio_interface {
+    RADIO_INTERFACE_NONE = -1, /* Since 1.4.3 */
+    RADIO_INTERFACE_1_0,
+    RADIO_INTERFACE_1_1,
+    RADIO_INTERFACE_1_2,
+    RADIO_INTERFACE_1_3,
+    RADIO_INTERFACE_1_4,
+    RADIO_INTERFACE_1_5, /* Since 1.5.0 */
+    RADIO_INTERFACE_COUNT
+} RADIO_INTERFACE; /* Since 1.2.0 */
+
+typedef enum radio_aidl_interface {
+    RADIO_AIDL_INTERFACE_NONE = -1,
+    RADIO_DATA_INTERFACE,
+    RADIO_IMS_INTERFACE,
+    RADIO_MESSAGING_INTERFACE,
+    RADIO_MODEM_INTERFACE,
+    RADIO_NETWORK_INTERFACE,
+    RADIO_SIM_INTERFACE,
+    RADIO_VOICE_INTERFACE,
+    RADIO_AIDL_INTERFACE_COUNT
+} RADIO_AIDL_INTERFACE; /* Since 1.6.0 */
+
+typedef enum radio_block_status {
+    RADIO_BLOCK_NONE,
+    RADIO_BLOCK_QUEUED,
+    RADIO_BLOCK_ACQUIRED
+} RADIO_BLOCK; /* Since 1.4.3 */
+
+typedef enum radio_observer_priority {
+    RADIO_OBSERVER_PRIORITY_LOWEST,
+    RADIO_OBSERVER_PRIORITY_DEFAULT = 2,
+    RADIO_OBSERVER_PRIORITY_HIGHEST = 7
+} RADIO_OBSERVER_PRIORITY; /* Since 1.4.6 */
 
 /* Types defined in types.hal */
 
