@@ -117,7 +117,8 @@ static const char* radio_config_signal_observe_indication_name[] = {
 static guint radio_config_signals[SIGNAL_COUNT] = { 0 };
 
 static const GBinderClientIfaceInfo radio_config_iface_info[] = {
-    {RADIO_CONFIG_1_1, RADIO_CONFIG_1_1_REQ_LAST },
+    {RADIO_CONFIG_1_3, RADIO_CONFIG_1_3_REQ_LAST },
+    {RADIO_CONFIG_1_2, RADIO_CONFIG_1_1_REQ_LAST },
     {RADIO_CONFIG_1_1, RADIO_CONFIG_1_1_REQ_LAST },
     {RADIO_CONFIG_1_0, RADIO_CONFIG_1_0_REQ_LAST }
 };
@@ -131,6 +132,7 @@ G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_iface_info) ==
     RADIO_CONFIG_AIDL_INTERFACE_COUNT);
 
 static const char* const radio_config_indication_ifaces[] = {
+    RADIO_CONFIG_INDICATION_1_3,
     RADIO_CONFIG_INDICATION_1_2,
     RADIO_CONFIG_INDICATION_1_1,
     RADIO_CONFIG_INDICATION_1_0,
@@ -147,6 +149,7 @@ G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_indication_ifaces) ==
     RADIO_CONFIG_AIDL_INTERFACE_COUNT + 1);
 
 static const char* const radio_config_response_ifaces[] = {
+    RADIO_CONFIG_RESPONSE_1_3,
     RADIO_CONFIG_RESPONSE_1_2,
     RADIO_CONFIG_RESPONSE_1_1,
     RADIO_CONFIG_RESPONSE_1_0,
@@ -208,6 +211,8 @@ radio_config_req_name_hidl(
     RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_REQ_)
     RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_REQ_)
     /* 1.2 defines no new requests */
+    RADIO_CONFIG_CALL_1_3(RADIO_CONFIG_REQ_)
+
     #undef RADIO_CONFIG_REQ_
     case RADIO_CONFIG_REQ_ANY:
         break;
@@ -272,6 +277,7 @@ radio_config_ind_name_hidl(
         RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS
 
 static const RadioConfigInterfaceDesc radio_config_interfaces[] = {
+   { RADIO_CONFIG_INTERFACE_DESC(1_3) },
    { RADIO_CONFIG_INTERFACE_DESC(1_2) },
    { RADIO_CONFIG_INTERFACE_DESC(1_1) },
    { RADIO_CONFIG_INTERFACE_DESC(1_0) }
