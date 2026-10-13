@@ -1,8 +1,9 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2018-2021 Jolla Ltd.
  * Copyright (C) 2018-2021 Slava Monich <slava.monich@jolla.com>
  *
- * You may use this file under the terms of BSD license as follows:
+ * You may use this file under the terms of the BSD license as follows:
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,11 +29,17 @@
  * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
  * THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * The views and conclusions contained in the software and documentation
+ * are those of the authors and should not be interpreted as representing
+ * any official policies, either expressed or implied.
  */
 
 #include "test_common.h"
 
 #include <gutil_log.h>
+
+#include <unistd.h>
 
 typedef struct test_quit_later_data{
     GMainLoop* loop;
@@ -43,15 +50,6 @@ typedef struct test_context_data{
     GMainLoop* loop;
     GTestFunc func;
 } TestContextData;
-
-static
-gboolean
-test_timeout_expired(
-    gpointer data)
-{
-    g_assert(!"TIMEOUT");
-    return G_SOURCE_REMOVE;
-}
 
 static
 void
@@ -117,10 +115,19 @@ test_run(
     if (opt->flags & TEST_FLAG_DEBUG) {
         g_main_loop_run(loop);
     } else {
-        const guint timeout_id = g_timeout_add_seconds(TEST_TIMEOUT_SEC,
-            test_timeout_expired, NULL);
+        static guint depth = 0;
+
+        /*
+         * SIGALRM terminates the process even if the main thread is stuck.
+         * Nested loops must neither extend nor cancel the outer timeout.
+         */
+        if (!depth++) {
+            alarm(TEST_TIMEOUT_SEC);
+        }
         g_main_loop_run(loop);
-        g_source_remove(timeout_id);
+        if (!--depth) {
+            alarm(0);
+        }
     }
 }
 
