@@ -78,6 +78,10 @@ radio_req_resp2(
     RADIO_REQ req,
     RADIO_INTERFACE iface); /* Since 1.4.5 */
 
+const char*
+radio_error_string(
+    RADIO_ERROR error); /* Since 1.7.0 */
+
 G_END_DECLS
 
 #endif /* RADIO_UTIL_H */
