@@ -357,6 +357,18 @@ radio_find_tx_name(
     return NULL;
 }
 
+const char*
+radio_error_string(
+    RADIO_ERROR error) /* Since 1.7.0 */
+{
+    switch (error) {
+    #define RADIO_ERROR_STR_(value,NAME) case RADIO_ERROR_##NAME: return #NAME;
+    RADIO_ERRORS(RADIO_ERROR_STR_)
+    #undef RADIO_ERROR_STR_
+    }
+    return NULL;
+}
+
 /*
  * Local Variables:
  * mode: C
