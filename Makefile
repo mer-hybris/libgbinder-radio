@@ -51,6 +51,7 @@ SRC = \
   radio_client.c \
   radio_config.c \
   radio_instance.c \
+  radio_logger.c \
   radio_registry.c \
   radio_request.c \
   radio_request_group.c \

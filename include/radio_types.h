@@ -46,6 +46,7 @@ G_BEGIN_DECLS
 typedef struct radio_client RadioClient;
 typedef struct radio_config RadioConfig;
 typedef struct radio_instance RadioInstance;
+typedef struct radio_logger RadioLogger;
 typedef struct radio_registry RadioRegistry;
 typedef struct radio_request RadioRequest;
 typedef struct radio_request_group RadioRequestGroup;

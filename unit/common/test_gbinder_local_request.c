@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd.
  * Copyright (C) 2021 Jolla Ltd.
  * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
  *
@@ -115,7 +116,7 @@ gbinder_local_request_init_writer(
     GBinderLocalRequest* self,
     GBinderWriter* writer)
 {
-    test_gbinder_data_init_writer(self->data, writer);
+    test_gbinder_data_init_writer(self ? self->data : NULL, writer);
 }
 
 GBinderLocalRequest*
