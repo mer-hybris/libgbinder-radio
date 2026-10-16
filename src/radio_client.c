@@ -42,24 +42,12 @@
 #include "radio_util.h"
 #include "radio_log.h"
 
-#include <gutil_macros.h>
 #include <gutil_misc.h>
 
 /* This API exists since 1.4.3 */
 
-enum radio_events {
-    RADIO_EVENT_IND,
-    RADIO_EVENT_RESP,
-    RADIO_EVENT_ACK,
-    RADIO_EVENT_DEATH,
-    RADIO_EVENT_CONNECTED,
-    RADIO_EVENT_COUNT
-};
-
 struct radio_client {
     RadioBase base;
-    RadioInstance* instance;
-    gulong event_ids[RADIO_EVENT_COUNT];
 };
 
 typedef RadioBaseClass RadioClientClass;
@@ -70,140 +58,8 @@ G_DEFINE_TYPE(RadioClient, radio_client, RADIO_TYPE_BASE)
 #define THIS_TYPE radio_client_get_type()
 #define THIS(obj) G_TYPE_CHECK_INSTANCE_CAST(obj, THIS_TYPE, RadioClient)
 
-typedef struct radio_client_call {
-    RadioRequest* req;
-    RadioBaseRequestSentFunc callback;
-} RadioClientCall;
-
-enum radio_client_signal {
-    SIGNAL_INDICATION,
-    SIGNAL_DEATH,
-    SIGNAL_CONNECTED,
-    SIGNAL_COUNT
-};
-
-#define SIGNAL_INDICATION_NAME "radio-client-indication"
-#define SIGNAL_DEATH_NAME      "radio-client-death"
-#define SIGNAL_CONNECTED_NAME  "radio-client-connected"
-
-static guint radio_client_signals[SIGNAL_COUNT] = { 0 };
-
 /*==========================================================================*
- * Implementation
- *==========================================================================*/
-
-static
-void
-radio_client_call_free(
-    RadioClientCall* call)
-{
-    radio_request_unref(call->req);
-    gutil_slice_free(call);
-}
-
-static
-void
-radio_client_call_destroy(
-    void* user_data1,
-    void* user_data2)
-{
-    radio_client_call_free(user_data2);
-}
-
-static
-void
-radio_client_call_complete(
-    RadioInstance* instance,
-    gulong id,
-    int status,
-    void* user_data1,
-    void* user_data2)
-{
-    RadioClientCall* call = user_data2;
-
-    call->callback(RADIO_BASE(user_data1), call->req, status);
-}
-
-static
-void
-radio_client_handle_death(
-    RadioInstance* instance,
-    gpointer user_data)
-{
-    RadioBase* base = RADIO_BASE(user_data);
-
-    g_object_ref(base);
-    radio_base_handle_death(base);
-    g_signal_emit(base, radio_client_signals[SIGNAL_DEATH], 0);
-    g_object_unref(base);
-}
-
-static
-void
-radio_client_handle_connected(
-    RadioInstance* instance,
-    gpointer user_data)
-{
-    g_signal_emit(THIS(user_data), radio_client_signals[SIGNAL_CONNECTED], 0);
-    radio_base_submit_requests(RADIO_BASE(user_data));
-}
-
-static
-void
-radio_client_handle_ack(
-    RadioInstance* instance,
-    guint32 serial,
-    gpointer user_data)
-{
-    radio_base_handle_ack(RADIO_BASE(user_data), serial);
-}
-
-static
-void
-radio_client_handle_ind(
-    RadioInstance* instance,
-    RADIO_IND code,
-    RADIO_IND_TYPE type,
-    const GBinderReader* reader,
-    gpointer user_data)
-{
-    g_signal_emit(THIS(user_data), radio_client_signals[SIGNAL_INDICATION],
-        radio_instance_ind_quark(instance, code), code, reader);
-}
-
-static
-void
-radio_client_handle_resp(
-    RadioInstance* instance,
-    RADIO_RESP code,
-    const RadioResponseInfo* info,
-    const GBinderReader* reader,
-    gpointer user_data)
-{
-    if (!radio_base_handle_resp(RADIO_BASE(user_data), code, info, reader)) {
-        const char* name = radio_resp_name2(instance, code);
-
-        /* Most likely this is a response to a cancelled request */
-        GDEBUG("Ignoring IRadio response [%08x] %u %s", info->serial, code,
-            name ? name : "");
-    }
-}
-
-static
-gulong
-radio_client_add_handler(
-    RadioClient* self,
-    enum radio_client_signal sig,
-    RadioClientFunc fn,
-    gpointer user_data)
-{
-    return (G_LIKELY(self) && G_LIKELY(fn)) ?
-        g_signal_connect_closure_by_id(self, radio_client_signals[sig], 0,
-             g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
-}
-
-/*==========================================================================*
- * API
+ * API (mostly wrappers around the internal RadioBase API)
  *==========================================================================*/
 
 RadioClient*
@@ -214,23 +70,7 @@ radio_client_new(
 
     if (G_LIKELY(instance)) {
         self = g_object_new(THIS_TYPE, NULL);
-        radio_base_initialize(&self->base);
-        self->instance = radio_instance_ref(instance);
-        self->event_ids[RADIO_EVENT_IND] =
-            radio_instance_add_indication_observer(instance, RADIO_IND_ANY,
-                radio_client_handle_ind, self);
-        self->event_ids[RADIO_EVENT_RESP] =
-            radio_instance_add_response_observer(instance, RADIO_RESP_ANY,
-                radio_client_handle_resp, self);
-        self->event_ids[RADIO_EVENT_ACK] =
-            radio_instance_add_ack_handler(instance,
-                radio_client_handle_ack, self);
-        self->event_ids[RADIO_EVENT_DEATH] =
-            radio_instance_add_death_handler(instance,
-                radio_client_handle_death, self);
-        self->event_ids[RADIO_EVENT_CONNECTED] =
-            radio_instance_add_connected_handler(instance,
-                radio_client_handle_connected, self);
+        radio_base_initialize(&self->base, instance);
     }
     return self;
 }
@@ -258,7 +98,7 @@ const char*
 radio_client_slot(
     RadioClient* self)
 {
-    return G_LIKELY(self) ? self->instance->slot : NULL;
+    return G_LIKELY(self) ? self->base.instance->slot : NULL;
 }
 
 const char*
@@ -266,7 +106,7 @@ radio_client_req_name(
     RadioClient* self,
     RADIO_REQ req) /* Since 1.6.5 */
 {
-    return radio_req_name2(self ? self->instance : NULL, req);
+    return radio_req_name2(self ? self->base.instance : NULL, req);
 }
 
 const char*
@@ -274,7 +114,7 @@ radio_client_resp_name(
     RadioClient* self,
     RADIO_RESP resp) /* Since 1.6.5 */
 {
-    return radio_resp_name2(self ? self->instance : NULL, resp);
+    return radio_resp_name2(self ? self->base.instance : NULL, resp);
 }
 
 const char*
@@ -282,35 +122,37 @@ radio_client_ind_name(
     RadioClient* self,
     RADIO_IND ind) /* Since 1.6.5 */
 {
-    return radio_ind_name2(self ? self->instance : NULL, ind);
+    return radio_ind_name2(self ? self->base.instance : NULL, ind);
 }
 
 gboolean
 radio_client_dead(
     RadioClient* self)
 {
-    return !self || self->instance->dead;
+    return !self || self->base.instance->dead;
 }
 
 gboolean
 radio_client_connected(
     RadioClient* self)
 {
-    return self && self->instance->connected;
+    return self && self->base.instance->connected;
 }
 
 RADIO_INTERFACE
 radio_client_interface(
     RadioClient* self)
 {
-    return G_LIKELY(self) ? self->instance->version : RADIO_INTERFACE_NONE;
+    return G_LIKELY(self) ? self->base.instance->version :
+        RADIO_INTERFACE_NONE;
 }
 
 RADIO_AIDL_INTERFACE
 radio_client_aidl_interface(
     RadioClient* self)
 {
-    return G_LIKELY(self) ? self->instance->interface_aidl : RADIO_AIDL_INTERFACE_NONE;
+    return G_LIKELY(self) ? self->base.instance->interface_aidl :
+        RADIO_AIDL_INTERFACE_NONE;
 }
 
 void
@@ -330,11 +172,8 @@ radio_client_add_indication_handler(
     RadioClientIndicationFunc fn,
     gpointer user_data)
 {
-    return (G_LIKELY(self) && G_LIKELY(fn)) ?
-        g_signal_connect_closure_by_id(self,
-            radio_client_signals[SIGNAL_INDICATION],
-            radio_instance_ind_quark(self->instance, code),
-            g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
+    return G_LIKELY(self) ? radio_base_add_indication_handler(&self->base,
+        code, (RadioBaseIndicationFunc) fn, user_data) : 0;
 }
 
 gulong
@@ -343,7 +182,7 @@ radio_client_add_owner_changed_handler(
     RadioClientFunc fn,
     gpointer user_data)
 {
-    return self ? radio_base_add_owner_changed_handler(&self->base,
+    return G_LIKELY(self) ? radio_base_add_owner_changed_handler(&self->base,
         (RadioBaseFunc) fn, user_data) : 0;
 }
 
@@ -353,7 +192,8 @@ radio_client_add_death_handler(
     RadioClientFunc fn,
     gpointer user_data)
 {
-    return radio_client_add_handler(self, SIGNAL_DEATH, fn, user_data);
+    return G_LIKELY(self) ? radio_base_add_death_handler(&self->base,
+        (RadioBaseFunc) fn, user_data) : 0;
 }
 
 gulong
@@ -362,7 +202,8 @@ radio_client_add_connected_handler(
     RadioClientFunc fn,
     gpointer user_data)
 {
-    return radio_client_add_handler(self, SIGNAL_CONNECTED, fn, user_data);
+    return G_LIKELY(self) ? radio_base_add_connected_handler(&self->base,
+        (RadioBaseFunc) fn, user_data) : 0;
 }
 
 void
@@ -385,67 +226,6 @@ radio_client_remove_handlers(
 }
 
 /*==========================================================================*
- * Methods
- *==========================================================================*/
-
-static
-gboolean
-radio_client_is_dead(
-    RadioBase* base)
-{
-    return THIS(base)->instance->dead;
-}
-
-static
-gboolean
-radio_client_can_submit_requests(
-    RadioBase* base)
-{
-    return THIS(base)->instance->connected;
-}
-
-static
-GBinderLocalRequest*
-radio_client_new_request(
-    RadioBase* base,
-    guint32 code)
-{
-    return radio_instance_new_request(THIS(base)->instance, code);
-}
-
-static
-gulong
-radio_client_send_request(
-    RadioBase* base,
-    RadioRequest* req,
-    RadioBaseRequestSentFunc callback)
-{
-    RadioClientCall* call = g_slice_new(RadioClientCall);
-    gulong tx_id;
-
-    call->callback = callback;
-    call->req = radio_request_ref(req);
-    tx_id = radio_instance_send_request(THIS(base)->instance,
-        req->code, req->args, radio_client_call_complete,
-        radio_client_call_destroy, base, call);
-    if (tx_id) {
-        return tx_id;
-    } else {
-        radio_client_call_free(call);
-        return 0;
-    }
-}
-
-static
-void
-radio_client_cancel_request(
-    RadioBase* base,
-    gulong id)
-{
-    radio_instance_cancel_request(THIS(base)->instance, id);
-}
-
-/*==========================================================================*
  * Internals
  *==========================================================================*/
 
@@ -458,42 +238,9 @@ radio_client_init(
 
 static
 void
-radio_client_finalize(
-    GObject* object)
-{
-    RadioClient* self = THIS(object);
-
-    radio_instance_remove_all_handlers(self->instance, self->event_ids);
-    radio_instance_unref(self->instance);
-    G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
-}
-
-static
-void
 radio_client_class_init(
     RadioClientClass* klass)
 {
-    RadioBaseClass* base_class = RADIO_BASE_CLASS(klass);
-    GObjectClass* object_class = G_OBJECT_CLASS(klass);
-    GType type = G_OBJECT_CLASS_TYPE(klass);
-
-    base_class->is_dead = radio_client_is_dead;
-    base_class->can_submit_requests = radio_client_can_submit_requests;
-    base_class->new_request = radio_client_new_request;
-    base_class->send_request = radio_client_send_request;
-    base_class->cancel_request = radio_client_cancel_request;
-    object_class->finalize = radio_client_finalize;
-
-    radio_client_signals[SIGNAL_INDICATION] =
-        g_signal_new(SIGNAL_INDICATION_NAME, type,
-            G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED, 0, NULL, NULL, NULL,
-            G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_POINTER);
-    radio_client_signals[SIGNAL_DEATH] =
-        g_signal_new(SIGNAL_DEATH_NAME, type, G_SIGNAL_RUN_FIRST, 0,
-            NULL, NULL, NULL, G_TYPE_NONE, 0);
-    radio_client_signals[SIGNAL_CONNECTED] =
-        g_signal_new(SIGNAL_CONNECTED_NAME, type, G_SIGNAL_RUN_FIRST, 0,
-            NULL, NULL, NULL, G_TYPE_NONE, 0);
 }
 
 /*

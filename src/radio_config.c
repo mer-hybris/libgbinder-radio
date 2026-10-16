@@ -37,34 +37,41 @@
 
 #include "radio_base.h"
 #include "radio_config.h"
+#include "radio_instance_p.h"
 #include "radio_log.h"
 #include "radio_request_p.h"
 #include "radio_util_p.h"
 
 #include <gbinder.h>
 
-#include <gutil_macros.h>
 #include <gutil_misc.h>
-#include <gutil_strv.h>
 
 /* This API exists since 1.4.6 */
 
-typedef struct radio_config_interface_desc RadioConfigInterfaceDesc;
-typedef struct radio_config RadioConfig;
+typedef enum radio_config_signal {
+    #define SIGNAL_(x) SIGNAL_OBSERVE_REQUEST_##x,
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_)
+    #undef SIGNAL_
+    #define SIGNAL_(x) SIGNAL_OBSERVE_RESPONSE_##x,
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_)
+    #undef SIGNAL_
+    #define SIGNAL_(x) SIGNAL_OBSERVE_INDICATION_##x,
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_)
+    #undef SIGNAL_
+    SIGNAL_COUNT
+} RADIO_CONFIG_SIGNAL;
+
+typedef struct radio_config_signal_forward {
+    RadioConfig* self;
+    RADIO_CONFIG_SIGNAL sig;
+    gulong id;
+} RadioConfigSignalForward;
 
 struct radio_config {
     RadioBase base;
-    const RadioConfigInterfaceDesc* desc;
-    RadioConfig** shared;
-    GBinderClient* client;
-    GBinderRemoteObject* remote;
-    GBinderLocalObject* response;
-    GBinderLocalObject* indication;
-    GHashTable* req_quarks;
-    GHashTable* resp_quarks;
-    GHashTable* ind_quarks;
-    gulong death_id;
-    gboolean dead;
+    RadioConfigSignalForward req_fwd[RADIO_OBSERVER_PRIORITY_COUNT];
+    RadioConfigSignalForward resp_fwd[RADIO_OBSERVER_PRIORITY_COUNT];
+    RadioConfigSignalForward ind_fwd[RADIO_OBSERVER_PRIORITY_COUNT];
 };
 
 typedef RadioBaseClass RadioConfigClass;
@@ -75,284 +82,187 @@ G_DEFINE_TYPE(RadioConfig, radio_config, RADIO_TYPE_BASE)
 #define THIS_TYPE radio_config_get_type()
 #define THIS(obj) G_TYPE_CHECK_INSTANCE_CAST(obj, THIS_TYPE, RadioConfig)
 
-typedef enum radio_config_signal {
-    #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_REQUEST_##x,
-    FOREACH_OBSERVER_PRIORITY(SIGNAL_INDEX)
-    #undef SIGNAL_INDEX
-    #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_RESPONSE_##x,
-    FOREACH_OBSERVER_PRIORITY(SIGNAL_INDEX)
-    #undef SIGNAL_INDEX
-    #define SIGNAL_INDEX(x) SIGNAL_OBSERVE_INDICATION_##x,
-    FOREACH_OBSERVER_PRIORITY(SIGNAL_INDEX)
-    #undef SIGNAL_INDEX
-    SIGNAL_INDICATION,
-    SIGNAL_DEATH,
-    SIGNAL_COUNT
-} RADIO_CONFIG_SIGNAL;
-
 static const char* radio_config_signal_observe_request_name[] = {
-    #define SIGNAL_NAME(x) "radio-config-observe-request-" #x,
-    FOREACH_OBSERVER_PRIORITY(SIGNAL_NAME)
-    #undef SIGNAL_NAME
+    #define SIGNAL_(x) "radio-config-observe-request-" #x,
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_)
+    #undef SIGNAL_
     NULL
 };
 
 static const char* radio_config_signal_observe_response_name[] = {
-    #define SIGNAL_NAME(x) "radio-config-observe-response-" #x,
-    FOREACH_OBSERVER_PRIORITY(SIGNAL_NAME)
-    #undef SIGNAL_NAME
+    #define SIGNAL_(x) "radio-config-observe-response-" #x,
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_)
+    #undef SIGNAL_
     NULL
 };
 
 static const char* radio_config_signal_observe_indication_name[] = {
-    #define SIGNAL_NAME(x) "radio-config-observe-indication-" #x,
-    FOREACH_OBSERVER_PRIORITY(SIGNAL_NAME)
-    #undef SIGNAL_NAME
+    #define SIGNAL_(x) "radio-config-observe-indication-" #x,
+    FOREACH_OBSERVER_PRIORITY(SIGNAL_)
+    #undef SIGNAL_
     NULL
 };
-
-#define SIGNAL_INDICATION_NAME "radio-config-indication"
-#define SIGNAL_DEATH_NAME      "radio-config-death"
 
 static guint radio_config_signals[SIGNAL_COUNT] = { 0 };
 
-static const GBinderClientIfaceInfo radio_config_iface_info[] = {
-    {RADIO_CONFIG_1_1, RADIO_CONFIG_1_1_REQ_LAST },
-    {RADIO_CONFIG_1_1, RADIO_CONFIG_1_1_REQ_LAST },
-    {RADIO_CONFIG_1_0, RADIO_CONFIG_1_0_REQ_LAST }
+/*
+ * HIDL interface. Note that there is no @1.2::IRadioConfig but there
+ * are @1.2::IRadioConfigResponse and #1.2::IRadioConfigIndication
+ */
+#define radio_config_hidl_iface_info_1_0 (radio_config_hidl_iface_info_1_2 + 1)
+#define radio_config_hidl_iface_info_1_1 radio_config_hidl_iface_info_1_2
+static const RadioClientIfaceInfo radio_config_hidl_iface_info_1_2[] = {
+    { RADIO_CONFIG_1_1, RADIO_CONFIG_1_1_REQ_LAST },
+    { RADIO_CONFIG_1_0, RADIO_CONFIG_1_0_REQ_LAST },
+    RADIO_IFACE_INFO_END
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_iface_info) ==
-    RADIO_CONFIG_INTERFACE_COUNT);
 
-static const GBinderClientIfaceInfo radio_config_aidl_iface_info[] = {
-    {RADIO_CONFIG_AIDL, RADIO_CONFIG_1_1_REQ_LAST }
+/* Known RADIO_INTERFACE versions in the opposite order: */
+#define RADIO_CONFIG_INTERFACE_VERSIONS(v) v(1_2) v(1_1) v(1_0)
+#define RADIO_CONFIG_INTERFACE_INDEX_(x) (RADIO_CONFIG_INTERFACE_COUNT - x - 1)
+#define RADIO_CONFIG_INTERFACE_INDEX(v) \
+    RADIO_CONFIG_INTERFACE_INDEX_(RADIO_CONFIG_INTERFACE_##v)
+
+static const RADIO_CONFIG_INTERFACE radio_config_hidl_interface[] = {
+    #define IFACE(v) RADIO_CONFIG_INTERFACE_##v,
+    RADIO_CONFIG_INTERFACE_VERSIONS(IFACE)
+    #undef IFACE
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_iface_info) ==
-    RADIO_CONFIG_AIDL_INTERFACE_COUNT);
 
-static const char* const radio_config_indication_ifaces[] = {
-    RADIO_CONFIG_INDICATION_1_2,
-    RADIO_CONFIG_INDICATION_1_1,
-    RADIO_CONFIG_INDICATION_1_0,
+static const char* const radio_config_hidl_response_ifaces[] = {
+    #define IFACE(v) RADIO_CONFIG_RESPONSE_##v,
+    RADIO_CONFIG_INTERFACE_VERSIONS(IFACE)
+    #undef IFACE
     NULL
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_indication_ifaces) ==
-    RADIO_CONFIG_INTERFACE_COUNT + 1);
 
-static const char* const radio_config_aidl_indication_ifaces[] = {
-    RADIO_CONFIG_AIDL_INDICATION,
+static const char* const radio_config_hidl_indication_ifaces[] = {
+    #define IFACE(v) RADIO_CONFIG_INDICATION_##v,
+    RADIO_CONFIG_INTERFACE_VERSIONS(IFACE)
+    #undef IFACE
     NULL
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_indication_ifaces) ==
-    RADIO_CONFIG_AIDL_INTERFACE_COUNT + 1);
 
-static const char* const radio_config_response_ifaces[] = {
-    RADIO_CONFIG_RESPONSE_1_2,
-    RADIO_CONFIG_RESPONSE_1_1,
-    RADIO_CONFIG_RESPONSE_1_0,
-    NULL
+static const RadioTxName radio_config_hidl_req_names[] = {
+    #define REQ(req,Name,NAME) { req, #Name },
+    RADIO_CONFIG_REQ_1_0(REQ)
+    #undef REQ
+    #define REQ(req,resp,Name,NAME) { req, #Name },
+    RADIO_CONFIG_CALL_1_0(REQ)
+    RADIO_CONFIG_CALL_1_1(REQ)
+    #undef REQ
+    RADIO_TX_NAMES_END
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_response_ifaces) ==
-    RADIO_CONFIG_INTERFACE_COUNT + 1);
+
+static const RadioTxName radio_config_hidl_resp_names[] = {
+    #define RESP(req,resp,Name,NAME) { resp, #Name "Response" },
+    RADIO_CONFIG_CALL_1_0(RESP)
+    RADIO_CONFIG_CALL_1_1(RESP)
+    #undef RESP
+    #define RESP(resp,Name,NAME) { resp, #Name },
+    RADIO_CONFIG_RESP_1_2(RESP)
+    #undef RESP
+    RADIO_TX_NAMES_END
+};
+
+static const RadioTxName radio_config_hidl_ind_names[] = {
+    #define IND(code,Name,NAME) { code, #Name },
+    RADIO_CONFIG_IND_1_0(IND)
+    /* 1.1 defines no new indications */
+    RADIO_CONFIG_IND_1_2(IND)
+    #undef IND
+    RADIO_TX_NAMES_END
+};
+
+static const RadioInterfaceDesc radio_config_hidl_resp_fn[] = {
+    #define FN(v) { \
+        radio_config_hidl_response_ifaces + RADIO_CONFIG_INTERFACE_INDEX(v),\
+        radio_config_hidl_resp_names },
+    RADIO_CONFIG_INTERFACE_VERSIONS(FN)
+    #undef FN
+};
+
+static const RadioInterfaceDesc radio_config_hidl_ind_fn[] = {
+    #define FN(v) { \
+        radio_config_hidl_indication_ifaces + RADIO_CONFIG_INTERFACE_INDEX(v), \
+        radio_config_hidl_ind_names },
+    RADIO_CONFIG_INTERFACE_VERSIONS(FN)
+    #undef FN
+};
+
+static const RadioServiceDesc radio_config_hidl_desc[] = {
+    #define DESC(v) { \
+        RADIO_INTERFACE_TYPE_HIDL, \
+        RADIO_CONFIG_##v, \
+        radio_config_hidl_req_names, \
+        radio_config_hidl_iface_info_##v, \
+        radio_config_hidl_resp_fn + RADIO_CONFIG_INTERFACE_INDEX(v), \
+        radio_config_hidl_ind_fn + RADIO_CONFIG_INTERFACE_INDEX(v), \
+        RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS },
+    RADIO_CONFIG_INTERFACE_VERSIONS(DESC)
+    #undef DESC
+};
+
+/* AIDL interface */
+
+static const RadioClientIfaceInfo radio_config_aidl_iface_info[] = {
+    { RADIO_CONFIG_AIDL, RADIO_CONFIG_1_1_REQ_LAST },
+    RADIO_IFACE_INFO_END
+};
 
 static const char* const radio_config_aidl_response_ifaces[] = {
     RADIO_CONFIG_AIDL_RESPONSE,
     NULL
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_response_ifaces) ==
-    RADIO_CONFIG_AIDL_INTERFACE_COUNT + 1);
 
-/* Must have a separate instance for each interface version */
-static RadioConfig* radio_config_instance[RADIO_CONFIG_INTERFACE_COUNT] =
-    { NULL };
-static RadioConfig* radio_config_aidl_instance[RADIO_CONFIG_AIDL_INTERFACE_COUNT] =
-    { NULL };
-
-typedef struct radio_config_call {
-    RadioRequest* req;
-    RadioBaseRequestSentFunc callback;
-    RadioBase* object;
-} RadioConfigCall;
-
-/*==========================================================================*
- * HIDL API flavor
- *==========================================================================*/
-
-typedef struct radio_config_interface_desc {
-    const char* api_name;
-    RADIO_INTERFACE_TYPE interface_type;
-    RADIO_CONFIG_INTERFACE version;
-    const char* fqname;
-    const char* radio_iface;
-    const char* const* ind_ifaces;
-    const char* const* resp_ifaces;
-    const GBinderClientIfaceInfo* iface_info;
-    guint iface_info_count;
-    GBINDER_STABILITY_LEVEL stability;
-    const RadioResponseInfo* (*read_response_info)(GBinderReader* reader);
-    const char* (*req_name)(guint req);
-    const char* (*resp_name)(guint req);
-    const char* (*ind_name)(guint req);
-    guint set_response_functions_req;
-} RadioConfigInterfaceDesc;
-
-static
-const char*
-radio_config_req_name_hidl(
-    guint req)
-{
-    switch ((RADIO_CONFIG_REQ)req) {
-    case RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS: return "setResponseFunctions";
-    #define RADIO_CONFIG_REQ_(req,resp,Name,NAME)\
-    case RADIO_CONFIG_REQ_##NAME: return #Name;
-    RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_REQ_)
-    RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_REQ_)
-    /* 1.2 defines no new requests */
-    #undef RADIO_CONFIG_REQ_
-    case RADIO_CONFIG_REQ_ANY:
-        break;
-    }
-    return NULL;
-}
-
-static
-const char*
-radio_config_resp_name_hidl(
-    guint resp)
-{
-    switch ((RADIO_CONFIG_RESP)resp) {
-    #define RADIO_CONFIG_RESP_(req,resp,Name,NAME) \
-    case RADIO_CONFIG_RESP_##NAME: return #Name "Response";
-    RADIO_CONFIG_CALL_1_0(RADIO_CONFIG_RESP_)
-    RADIO_CONFIG_CALL_1_1(RADIO_CONFIG_RESP_)
-    #undef RADIO_CONFIG_RESP_
-    case RADIO_CONFIG_RESP_GET_SIM_SLOTS_STATUS_1_2:
-        return "getSimSlotsStatusResponse_1_2";
-    case RADIO_CONFIG_RESP_ANY:
-        break;
-    }
-    return NULL;
-}
-
-static
-const char*
-radio_config_ind_name_hidl(
-    guint ind)
-{
-    switch ((RADIO_CONFIG_IND)ind) {
-    #define RADIO_CONFIG_IND_(code,Name,NAME) \
-    case RADIO_CONFIG_IND_##NAME: return #Name;
-    RADIO_CONFIG_IND_1_0(RADIO_CONFIG_IND_)
-    /* 1.1 defines no new indications */
-    RADIO_CONFIG_IND_1_2(RADIO_CONFIG_IND_)
-    #undef RADIO_CONFIG_IND_
-    case RADIO_CONFIG_IND_ANY:
-        break;
-    }
-    return NULL;
-}
-
-#define RADIO_CONFIG_INTERFACE_INDEX(x) (RADIO_CONFIG_INTERFACE_COUNT - x - 1)
-#define RADIO_CONFIG_INTERFACE_DESC(v) \
-        "hidl_" #v, \
-        RADIO_INTERFACE_TYPE_HIDL, \
-        RADIO_CONFIG_INTERFACE_##v, \
-        RADIO_CONFIG_##v##_FQNAME, \
-        RADIO_CONFIG_##v, \
-        radio_config_indication_ifaces + \
-        RADIO_CONFIG_INTERFACE_INDEX(RADIO_CONFIG_INTERFACE_##v), \
-        radio_config_response_ifaces + \
-        RADIO_CONFIG_INTERFACE_INDEX(RADIO_CONFIG_INTERFACE_##v),   \
-        radio_config_iface_info, G_N_ELEMENTS(radio_config_iface_info), \
-        GBINDER_STABILITY_SYSTEM, \
-        radio_read_response_info_hidl, \
-        radio_config_req_name_hidl, \
-        radio_config_resp_name_hidl, \
-        radio_config_ind_name_hidl, \
-        RADIO_CONFIG_REQ_SET_RESPONSE_FUNCTIONS
-
-static const RadioConfigInterfaceDesc radio_config_interfaces[] = {
-   { RADIO_CONFIG_INTERFACE_DESC(1_2) },
-   { RADIO_CONFIG_INTERFACE_DESC(1_1) },
-   { RADIO_CONFIG_INTERFACE_DESC(1_0) }
+static const char* const radio_config_aidl_indication_ifaces[] = {
+    RADIO_CONFIG_AIDL_INDICATION,
+    NULL
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_interfaces) ==
-    RADIO_CONFIG_INTERFACE_COUNT);
 
-/*==========================================================================*
- * AIDL API flavor
- *==========================================================================*/
-
-static
-const char*
-radio_config_req_name_aidl(
-    guint req)
-{
-    switch ((RADIO_CONFIG_AIDL_REQ)req) {
-    case RADIO_CONFIG_AIDL_REQ_SET_RESPONSE_FUNCTIONS: return "setResponseFunctions";
-    #define RADIO_CONFIG_AIDL_REQ_(req,resp,Name,NAME) \
-    case RADIO_CONFIG_AIDL_REQ_##NAME: return #Name;
-    RADIO_CONFIG_AIDL_CALL_1(RADIO_CONFIG_AIDL_REQ_)
-    #undef RADIO_CONFIG_AIDL_REQ_
-    case RADIO_CONFIG_AIDL_REQ_ANY:
-        break;
-    }
-    return NULL;
-}
-
-static
-const char*
-radio_config_resp_name_aidl(
-    guint resp)
-{
-    switch ((RADIO_CONFIG_AIDL_RESP)resp) {
-    #define RADIO_CONFIG_AIDL_RESP_(req,resp,Name,NAME) \
-    case RADIO_CONFIG_AIDL_RESP_##NAME: return #Name "Response";
-    RADIO_CONFIG_AIDL_CALL_1(RADIO_CONFIG_AIDL_RESP_)
-    #undef RADIO_CONFIG_AIDL_RESP_
-    case RADIO_CONFIG_AIDL_RESP_ANY:
-        break;
-    }
-    return NULL;
-}
-
-static
-const char*
-radio_config_ind_name_aidl(
-    guint ind)
-{
-    switch ((RADIO_CONFIG_AIDL_IND)ind) {
-    #define RADIO_CONFIG_AIDL_IND_(code,Name,NAME) \
-    case RADIO_CONFIG_AIDL_IND_##NAME: return #Name;
-    RADIO_CONFIG_AIDL_IND_1(RADIO_CONFIG_AIDL_IND_)
-    #undef RADIO_CONFIG_AIDL_IND_
-    case RADIO_CONFIG_AIDL_IND_ANY:
-        break;
-    }
-    return NULL;
-}
-
-static const RadioConfigInterfaceDesc radio_config_aidl_interfaces[] = {
-    {
-        "aidl",
-        RADIO_INTERFACE_TYPE_AIDL,
-        RADIO_CONFIG_AIDL_INTERFACE_1,
-        RADIO_CONFIG_AIDL_FQNAME,
-        RADIO_CONFIG_AIDL,
-        radio_config_aidl_indication_ifaces,
-        radio_config_aidl_response_ifaces,
-        radio_config_aidl_iface_info,
-        G_N_ELEMENTS(radio_config_aidl_iface_info),
-        GBINDER_STABILITY_VINTF,
-        radio_read_response_info_aidl,
-        radio_config_req_name_aidl,
-        radio_config_resp_name_aidl,
-        radio_config_ind_name_aidl,
-        RADIO_CONFIG_AIDL_REQ_SET_RESPONSE_FUNCTIONS
-    }
+static const RadioTxName radio_config_aidl_req_names[] = {
+    #define REQ(req,Name,NAME) { req, #Name },
+    RADIO_CONFIG_AIDL_REQ_1(REQ)
+    #undef REQ
+    #define REQ(req,resp,Name,NAME) { req, #Name },
+    RADIO_CONFIG_AIDL_CALL_1(REQ)
+    #undef REQ
+    RADIO_TX_NAMES_END
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_interfaces) ==
-    RADIO_CONFIG_AIDL_INTERFACE_COUNT);
+
+static const RadioTxName radio_config_aidl_resp_names[] = {
+    #define RESP(req,resp,Name,NAME) { resp, #Name "Response" },
+    RADIO_CONFIG_AIDL_CALL_1(RESP)
+    #undef RESP
+    RADIO_TX_NAMES_END
+};
+
+static const RadioTxName radio_config_aidl_ind_names[] = {
+    #define IND(code,Name,NAME) { code, #Name },
+    RADIO_CONFIG_AIDL_IND_1(IND)
+    #undef IND
+    RADIO_TX_NAMES_END
+};
+
+static const RadioInterfaceDesc radio_config_aidl_resp_fn = {
+    radio_config_aidl_response_ifaces,
+    radio_config_aidl_resp_names
+};
+
+static const RadioInterfaceDesc radio_config_aidl_ind_fn = {
+    radio_config_aidl_indication_ifaces,
+    radio_config_aidl_ind_names
+};
+
+static const RadioServiceDesc radio_config_aidl_desc = {
+    RADIO_INTERFACE_TYPE_AIDL,
+    RADIO_CONFIG_AIDL,
+    radio_config_aidl_req_names,
+    radio_config_aidl_iface_info,
+    &radio_config_aidl_resp_fn,
+    &radio_config_aidl_ind_fn,
+    RADIO_CONFIG_AIDL_REQ_SET_RESPONSE_FUNCTIONS
+};
 
 /*==========================================================================*
  * Implementation
@@ -360,300 +270,49 @@ G_STATIC_ASSERT(G_N_ELEMENTS(radio_config_aidl_interfaces) ==
 
 static
 void
-radio_config_call_free(
-    RadioConfigCall* call)
+radio_config_request_observer(
+    RadioInstance* inst,
+    RADIO_REQ code,
+    GBinderLocalRequest* args,
+    gpointer user_data)
 {
-    radio_request_unref(call->req);
-    gutil_slice_free(call);
+    RadioConfigSignalForward* fwd = user_data;
+    RadioConfig* self = fwd->self;
+
+    g_signal_emit(self, radio_config_signals[fwd->sig],
+        radio_instance_req_quark(inst, code), code, args);
 }
 
 static
 void
-radio_config_call_complete(
-    GBinderClient* client,
-    GBinderRemoteReply* reply,
-    int status,
-    void* user_data)
+radio_config_response_observer(
+    RadioInstance* inst,
+    RADIO_RESP code,
+    const RadioResponseInfo* info,
+    const GBinderReader* args,
+    gpointer user_data)
 {
-    RadioConfigCall* call = user_data;
+    RadioConfigSignalForward* fwd = user_data;
+    RadioConfig* self = fwd->self;
 
-    call->callback(call->object, call->req, status);
-}
-
-static
-GQuark
-radio_config_quark(
-    guint code,
-    GHashTable* quarks,
-    const char* (*known_name)(guint code))
-{
-    GQuark q = 0;
-
-    if (code) {
-        gpointer key = GUINT_TO_POINTER(code);
-
-        q = GPOINTER_TO_UINT(g_hash_table_lookup(quarks, key));
-        if (!q) {
-            const char* known = known_name(code);
-
-            if (known) {
-                q = g_quark_from_static_string(known);
-            } else {
-                char* str = g_strdup_printf("%u", code);
-
-                q = g_quark_from_string(str);
-                g_free(str);
-            }
-            g_hash_table_insert(quarks, key, GUINT_TO_POINTER(q));
-        }
-    }
-    return q;
-}
-
-static
-GQuark
-radio_config_req_quark(
-    RadioConfig* self,
-    RADIO_CONFIG_REQ req)
-{
-    return radio_config_quark(req, self->req_quarks, self->desc->req_name);
-}
-
-static
-GQuark
-radio_config_resp_quark(
-    RadioConfig* self,
-    RADIO_CONFIG_RESP resp)
-{
-    return radio_config_quark(resp, self->resp_quarks, self->desc->resp_name);
-}
-
-static
-GQuark
-radio_config_ind_quark(
-    RadioConfig* self,
-    RADIO_CONFIG_IND ind)
-{
-    return radio_config_quark(ind, self->ind_quarks, self->desc->ind_name);
-}
-
-static
-GBinderLocalReply*
-radio_config_indication(
-    GBinderLocalObject* obj,
-    GBinderRemoteRequest* req,
-    guint code,
-    guint flags,
-    int* status,
-    void* user_data)
-{
-    RadioConfig* self = THIS(user_data);
-    const char* iface = gbinder_remote_request_interface(req);
-
-    if (gutil_strv_contains((GStrV*)radio_config_indication_ifaces, iface)) {
-        GBinderReader args;
-        guint type;
-
-        /*
-         * All these should be one-way and have RADIO_IND_UNSOLICITED type
-         * as the first parameter. RADIO_IND_ACK_EXP is not expected because
-         * IRadioConfig doesn't have responseAcknowledgement
-         */
-        GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
-        gbinder_remote_request_init_reader(req, &args);
-        if (gbinder_reader_read_uint32(&args, &type) &&
-            type == RADIO_IND_UNSOLICITED) {
-            int i;
-            const GQuark quark = radio_config_ind_quark(self, code);
-            const guint* signals = radio_config_signals +
-                SIGNAL_OBSERVE_INDICATION_0;
-
-            for (i = RADIO_OBSERVER_PRIORITY_COUNT - 1; i >=0; i--) {
-                if (signals[i]) {
-                    g_signal_emit(self, signals[i], quark, code, &args);
-                }
-            }
-            *status = GBINDER_STATUS_OK;
-        } else {
-            GWARN("Failed to decode IRadioConfig indication %u", code);
-            *status = GBINDER_STATUS_FAILED;
-        }
-    }
-    return NULL;
-}
-
-static
-GBinderLocalReply*
-radio_config_response(
-    GBinderLocalObject* obj,
-    GBinderRemoteRequest* req,
-    guint code,
-    guint flags,
-    int* status,
-    void* user_data)
-{
-    RadioConfig* self = THIS(user_data);
-    const RadioConfigInterfaceDesc* desc = self->desc;
-    const char* iface = gbinder_remote_request_interface(req);
-    const RadioResponseInfo* info = NULL;
-    GBinderReader args;
-
-    gbinder_remote_request_init_reader(req, &args);
-    if (gutil_strv_contains((GStrV*)desc->resp_ifaces, iface)) {
-        /* All responses must be one-way and have RadioResponseInfo */
-        GASSERT(flags & GBINDER_TX_FLAG_ONEWAY);
-        info = desc->read_response_info(&args);
-    } else {
-        GWARN("Unexpected response %s %u", iface, code);
-        *status = GBINDER_STATUS_FAILED;
-        return NULL;
-    }
-
-    if (info) {
-        int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
-        const GQuark quark = radio_config_resp_quark(self, code);
-        const guint* signals = radio_config_signals +
-            SIGNAL_OBSERVE_RESPONSE_0;
-
-        radio_config_ref(self);
-
-        /* High-priority observers get notified first */
-        for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
-            const int i = RADIO_OBSERVER_PRIORITY_INDEX(p);
-
-            if (signals[i]) {
-                g_signal_emit(self, signals[i], quark, code, info, &args);
-            }
-        }
-
-        /* Then the response is actually processed */
-        if (!radio_base_handle_resp(&self->base, code, info, &args)) {
-            const char* name = desc->resp_name(code);
-
-            /* Most likely this is a response to a cancelled request */
-            GDEBUG("Ignoring IRadioConfig response [%08x] %u %s",
-                info->serial, code, name ? name : "");
-        }
-
-        /* Followed by the remaining observers in their priority order */
-        for (; p >= RADIO_OBSERVER_PRIORITY_LOWEST; p--) {
-            const int i = RADIO_OBSERVER_PRIORITY_INDEX(p);
-
-            if (signals[i]) {
-                g_signal_emit(self, signals[i], quark, code, info, &args);
-            }
-        }
-        radio_config_unref(self);
-        *status = GBINDER_STATUS_OK;
-    }
-
-    return NULL;
+    g_signal_emit(self, radio_config_signals[fwd->sig],
+        radio_instance_resp_quark(inst, code), code, info, args);
 }
 
 static
 void
-radio_config_drop_binder(
-    RadioConfig* self)
+radio_config_indication_observer(
+    RadioInstance* inst,
+    RADIO_IND code,
+    RADIO_IND_TYPE type,
+    const GBinderReader* args,
+    gpointer user_data)
 {
-    if (self->indication) {
-        gbinder_local_object_drop(self->indication);
-        self->indication = NULL;
-    }
-    if (self->response) {
-        gbinder_local_object_drop(self->response);
-        self->response = NULL;
-    }
-    if (self->remote) {
-        gbinder_remote_object_remove_handler(self->remote, self->death_id);
-        gbinder_remote_object_unref(self->remote);
-        self->death_id = 0;
-        self->remote = NULL;
-    }
-}
+    RadioConfigSignalForward* fwd = user_data;
+    RadioConfig* self = fwd->self;
 
-static
-void
-radio_config_gone(
-    gpointer user_data,
-    GObject* dead)
-{
-    GObject** shared_instance = user_data;
-
-    if (*shared_instance == dead) {
-        *shared_instance = NULL;
-        GVERBOSE_("IRadioConfig gone");
-    }
-}
-
-static
-void
-radio_config_died(
-    GBinderRemoteObject* obj,
-    void* user_data)
-{
-    RadioConfig* self = THIS(user_data);
-
-    GWARN("IRadioConfig died");
-    self->dead = TRUE;
-    radio_config_ref(self);
-    radio_config_drop_binder(self);
-    if (self->shared && *self->shared == self) {
-        /* Clear the cache */
-        g_object_weak_unref(G_OBJECT(self), radio_config_gone, self->shared);
-        *self->shared = NULL;
-    }
-    g_signal_emit(self, radio_config_signals[SIGNAL_DEATH], 0);
-    radio_base_handle_death(&self->base);
-    radio_config_unref(self);
-}
-
-static
-RadioConfig*
-radio_config_create(
-    GBinderServiceManager* sm,
-    GBinderRemoteObject* remote,
-    const RadioConfigInterfaceDesc* desc)
-{
-    RadioConfig* self = g_object_new(THIS_TYPE, NULL);
-    GBinderLocalRequest* req;
-    GBinderWriter writer;
-    int status;
-
-    GDEBUG("Using %s config api", desc->api_name);
-    radio_base_initialize(&self->base);
-    self->desc = desc;
-    self->remote = gbinder_remote_object_ref(remote);
-    self->indication = gbinder_servicemanager_new_local_object2(sm,
-        desc->ind_ifaces, radio_config_indication, self);
-    self->response = gbinder_servicemanager_new_local_object2(sm,
-        desc->resp_ifaces, radio_config_response, self);
-    self->death_id = gbinder_remote_object_add_death_handler(remote,
-        radio_config_died, self);
-    self->client = gbinder_client_new2(remote, desc->iface_info,
-        desc->iface_info_count);
-
-    gbinder_local_object_set_stability(self->indication, desc->stability);
-    gbinder_local_object_set_stability(self->response, desc->stability);
-
-    /*
-     * IRadioConfig.hal:
-     * setResponseFunctions(IRadioConfigResponse radioConfigResponse,
-     *     IRadioConfigIndication radioConfigIndication);
-     *
-     * IRadioConfig.aidl:
-     * void setResponseFunctions(in IRadioConfigResponse radioConfigResponse,
-     *     in IRadioConfigIndication radioConfigIndication);
-     */
-    req = gbinder_client_new_request2(self->client,
-        desc->set_response_functions_req);
-    gbinder_local_request_init_writer(req, &writer);
-    gbinder_writer_append_local_object(&writer, self->response);
-    gbinder_writer_append_local_object(&writer, self->indication);
-    gbinder_remote_reply_unref(gbinder_client_transact_sync_reply(self->client,
-        desc->set_response_functions_req, req, &status));
-    GVERBOSE_("IRadioConfig::setResponseFunctions status %d", status);
-    gbinder_local_request_unref(req);
-    return self;
+    g_signal_emit(self, radio_config_signals[fwd->sig],
+        radio_instance_ind_quark(inst, code), code, args);
 }
 
 /*==========================================================================*
@@ -680,78 +339,66 @@ radio_config_new_with_version_and_interface_type(
     RADIO_CONFIG_INTERFACE max_version,
     RADIO_INTERFACE_TYPE interface_type)
 {
-    static RadioConfig** instances = NULL;
-    const RadioConfigInterfaceDesc* interfaces = NULL;
-    gsize num_interfaces = 0;
-    const char* binder_device = GBINDER_DEFAULT_HWBINDER;
+    const char* dev;
+    const RadioServiceDesc* desc;
+    const RADIO_CONFIG_INTERFACE* radio_iface_id;
+    GWeakRef* cache;
+    RadioInstance* inst = NULL;
+    guint i, n_desc = 0;
 
     if (interface_type == RADIO_INTERFACE_TYPE_HIDL) {
+        /* Cached instances */
+        static GWeakRef hidl_cache[RADIO_CONFIG_INTERFACE_COUNT];
         /* Validate the requested version to avoid out-of-bounds access */
-        if (max_version < RADIO_CONFIG_INTERFACE_1_0) {
-            max_version = RADIO_CONFIG_INTERFACE_1_0;
-        } else if (max_version > RADIO_CONFIG_INTERFACE_MAX) {
-            max_version = RADIO_CONFIG_INTERFACE_MAX;
-        }
-        instances = radio_config_instance;
-        interfaces = radio_config_interfaces;
-        num_interfaces = G_N_ELEMENTS(radio_config_interfaces);
-    } else if (interface_type == RADIO_INTERFACE_TYPE_AIDL) {
-        /* Only RADIO_CONFIG_AIDL_INTERFACE_1 is supported for now */
-        max_version = RADIO_CONFIG_AIDL_INTERFACE_1;
-        binder_device = GBINDER_DEFAULT_BINDER;
-        instances = radio_config_aidl_instance;
-        interfaces = radio_config_aidl_interfaces;
-        num_interfaces = G_N_ELEMENTS(radio_config_aidl_interfaces);
+        const guint offset = (max_version > RADIO_CONFIG_INTERFACE_MAX) ? 0 :
+            (max_version < RADIO_CONFIG_INTERFACE_1_0) ?
+            (RADIO_CONFIG_INTERFACE_COUNT - 1) :
+            (RADIO_CONFIG_INTERFACE_COUNT - max_version - 1);
+
+        dev = GBINDER_DEFAULT_HWBINDER;
+        desc = radio_config_hidl_desc + offset;
+        radio_iface_id = radio_config_hidl_interface + offset;
+        cache = hidl_cache + offset;
+        n_desc = RADIO_CONFIG_INTERFACE_COUNT - offset;
     } else {
-        GWARN("Wrong interface_type %d (neither HIDL nor AIDL)", interface_type);
-        return NULL;
+        /* Only one AIDL interface is supported so far */
+        static GWeakRef aidl_cache;
+        static const RADIO_CONFIG_INTERFACE none = RADIO_CONFIG_INTERFACE_NONE;
+
+        dev = GBINDER_DEFAULT_BINDER;
+        desc = &radio_config_aidl_desc;
+        radio_iface_id = &none;
+        cache = &aidl_cache;
+        n_desc = 1;
     }
 
-    if (instances[max_version]) {
-        /* The requested instance already exists */
-        return radio_config_ref(instances[max_version]);
-    } else {
-        /* Assume /dev/hwbinder for HIDL, /dev/binder for AIDL */
-        GBinderServiceManager* sm =
-            gbinder_servicemanager_new(binder_device);
+    for (i = 0; i < n_desc; i++) {
+        GWeakRef* ref = cache + i;
+        RadioConfig* obj = g_weak_ref_get(ref);
 
-        if (sm) {
-            guint i;
-            GBinderRemoteObject* obj = NULL; /* autoreleased */
-            const RadioConfigInterfaceDesc* desc;
-            RadioConfig* config = NULL;
-
-            /* Find maximum available version not exceeding the requested one */
-            for (i=0; i<num_interfaces && !obj; i++) {
-                desc = interfaces + i;
-                if (desc->version <= max_version) {
-                    obj = gbinder_servicemanager_get_service_sync(sm,
-                        desc->fqname, NULL);
-                    if (obj) {
-                        /*
-                         * desc->version isn't necessarily equal to
-                         * max_version
-                         */
-                        if (instances[desc->version]) {
-                            config = radio_config_ref(instances[desc->version]);
-                        } else {
-                            GINFO("Connected to %s", desc->fqname);
-                            config = radio_config_create(sm, obj, desc);
-                        }
-                        break;
-                    }
-                }
-            }
-
-            gbinder_servicemanager_unref(sm);
-            if (config) {
-                *(config->shared = instances + desc->version) = config;
-                g_object_weak_ref(G_OBJECT(config), radio_config_gone,
-                    config->shared);
-                return config;
+        if (obj) {
+            if (obj->base.instance->dead) {
+                /* Somebody is holding a referent to the dead object */
+                g_weak_ref_set(ref, NULL);
+            } else {
+                /* The requested object already exists and it's still alive */
+                return obj;
             }
         }
+
+        inst = radio_instance_new_internal(dev, RADIO_CONFIG_INSTANCE,
+                NULL, -1, radio_iface_id[i], RADIO_AIDL_INTERFACE_NONE,
+                desc + i, TRUE);
+        if (inst) {
+            /* Create the new one */
+            obj = g_object_new(THIS_TYPE, NULL);
+            radio_base_initialize(&obj->base, inst);
+            g_weak_ref_set(ref, obj);
+            radio_instance_unref(inst);
+            return obj;
+        }
     }
+
     return NULL;
 }
 
@@ -778,21 +425,23 @@ gboolean
 radio_config_dead(
     RadioConfig* self)
 {
-    return G_UNLIKELY(!self) || self->dead;
+    return G_UNLIKELY(!self) || self->base.instance->dead;
 }
 
 RADIO_INTERFACE_TYPE
 radio_config_interface_type(
     RadioConfig* self)
 {
-    return self ? self->desc->interface_type : RADIO_INTERFACE_TYPE_NONE;
+    return G_LIKELY(self) ? self->base.instance->interface_type :
+        RADIO_INTERFACE_TYPE_NONE;
 }
 
 RADIO_CONFIG_INTERFACE
 radio_config_interface(
     RadioConfig* self)
 {
-    return self ? self->desc->version : RADIO_CONFIG_INTERFACE_NONE;
+    return G_LIKELY(self) ? self->base.instance->version :
+        RADIO_CONFIG_INTERFACE_NONE;
 }
 
 gsize
@@ -800,14 +449,8 @@ radio_config_rpc_header_size(
     RadioConfig* self,
     RADIO_CONFIG_REQ req)
 {
-    if (G_LIKELY(self)) {
-        GBytes* header = gbinder_client_rpc_header(self->client, req);
-
-        if (header) {
-            return g_bytes_get_size(header);
-        }
-    }
-    return 0;
+    return G_LIKELY(self) ?
+        radio_instance_rpc_header_size(self->base.instance, req) : 0;
 }
 
 const char*
@@ -815,7 +458,8 @@ radio_config_req_name(
     RadioConfig* self,
     RADIO_CONFIG_REQ req)
 {
-    return G_LIKELY(self) ? self->desc->req_name(req) : NULL;
+    return G_LIKELY(self) ? radio_req_name2(self->base.instance, req) :
+        radio_find_tx_name(radio_config_hidl_req_names, req);
 }
 
 const char*
@@ -823,7 +467,8 @@ radio_config_resp_name(
     RadioConfig* self,
     RADIO_CONFIG_RESP resp)
 {
-    return G_LIKELY(self) ? self->desc->resp_name(resp) : NULL;
+    return G_LIKELY(self) ? radio_resp_name2(self->base.instance, resp) :
+        radio_find_tx_name(radio_config_hidl_resp_names, resp);
 }
 
 const char*
@@ -831,19 +476,18 @@ radio_config_ind_name(
     RadioConfig* self,
     RADIO_CONFIG_IND ind)
 {
-    return G_LIKELY(self) ? self->desc->ind_name(ind) : NULL;
+    return G_LIKELY(self) ? radio_ind_name2(self->base.instance, ind) :
+        radio_find_tx_name(radio_config_hidl_ind_names, ind);
 }
 
 gulong
 radio_config_add_death_handler(
     RadioConfig* self,
-    RadioConfigFunc fn,
+    RadioConfigFunc func,
     gpointer user_data)
 {
-    return (G_LIKELY(self) && G_LIKELY(fn)) ?
-        g_signal_connect_closure_by_id(self,
-             radio_config_signals[SIGNAL_DEATH], 0,
-             g_cclosure_new(G_CALLBACK(fn), user_data, NULL), FALSE) : 0;
+    return G_LIKELY(self) ? radio_base_add_death_handler(&self->base,
+        (RadioBaseFunc) func, user_data) : 0;
 }
 
 gulong
@@ -865,22 +509,36 @@ radio_config_add_request_observer_with_priority(
     RadioConfigRequestObserverFunc func,
     gpointer user_data)
 {
+    /*
+     * This is not very useful API but it's been available since 1.4.6 and
+     * has to be maintained.
+     */
     if (G_LIKELY(self) && G_LIKELY(func)) {
         const guint index = radio_observer_priority_index(priority);
         const RADIO_CONFIG_SIGNAL sig = SIGNAL_OBSERVE_REQUEST_0 + index;
+        RadioConfigSignalForward* fwd = self->req_fwd + index;
+        RadioInstance* inst = self->base.instance;
 
         /* Register signal on demand */
         if (!radio_config_signals[sig]) {
             radio_config_signals[sig] =
                 g_signal_new(radio_config_signal_observe_request_name[index],
-                    THIS_TYPE, G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED,
+                    THIS_TYPE, G_SIGNAL_RUN_FIRST|G_SIGNAL_DETAILED,
                     0, NULL, NULL, NULL, G_TYPE_NONE,
                     2, G_TYPE_UINT, G_TYPE_POINTER);
         }
 
+        /* Register forwarder on demand, too */
+        if (!fwd->id) {
+            fwd->self = self;
+            fwd->sig = sig;
+            fwd->id = radio_instance_add_request_observer_with_priority(inst,
+                priority, RADIO_REQ_ANY, radio_config_request_observer, fwd);
+        }
+
         return g_signal_connect_closure_by_id(self,
             radio_config_signals[sig],
-            radio_config_req_quark(self, code),
+            radio_instance_req_quark(inst, code),
             g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE);
     }
     return 0;
@@ -905,22 +563,36 @@ radio_config_add_response_observer_with_priority(
     RadioConfigResponseObserverFunc func,
     gpointer user_data)
 {
+    /*
+     * This is not very useful API but it's been available since 1.4.6 and
+     * has to be maintained.
+     */
     if (G_LIKELY(self) && G_LIKELY(func)) {
         const guint index = radio_observer_priority_index(priority);
         const RADIO_CONFIG_SIGNAL sig = SIGNAL_OBSERVE_RESPONSE_0 + index;
+        RadioConfigSignalForward* fwd = self->resp_fwd + index;
+        RadioInstance* inst = self->base.instance;
 
         /* Register signal on demand */
         if (!radio_config_signals[sig]) {
             radio_config_signals[sig] =
                 g_signal_new(radio_config_signal_observe_response_name[index],
-                    THIS_TYPE, G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED,
+                    THIS_TYPE, G_SIGNAL_RUN_FIRST|G_SIGNAL_DETAILED,
                     0, NULL, NULL, NULL, G_TYPE_NONE,
                     3, G_TYPE_UINT, G_TYPE_POINTER, G_TYPE_POINTER);
         }
 
+        /* Register forwarder on demand, too */
+        if (!fwd->id) {
+            fwd->self = self;
+            fwd->sig = sig;
+            fwd->id = radio_instance_add_response_observer_with_priority(inst,
+                priority, RADIO_RESP_ANY, radio_config_response_observer, fwd);
+        }
+
         return g_signal_connect_closure_by_id(self,
             radio_config_signals[sig],
-            radio_config_resp_quark(self, code),
+            radio_instance_resp_quark(inst, code),
             g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE);
     }
     return 0;
@@ -943,24 +615,38 @@ radio_config_add_indication_observer_with_priority(
     RADIO_OBSERVER_PRIORITY priority,
     RADIO_CONFIG_IND code,
     RadioConfigIndicationObserverFunc func,
-    gpointer user_data) /* Since 1.4.3 */
+    gpointer user_data)
 {
+    /*
+     * This is not very useful API but it's been available since 1.4.6 and
+     * has to be maintained.
+     */
     if (G_LIKELY(self) && G_LIKELY(func)) {
-        const guint pi = radio_observer_priority_index(priority);
-        const RADIO_CONFIG_SIGNAL sig = SIGNAL_OBSERVE_INDICATION_0 + pi;
+        const guint index = radio_observer_priority_index(priority);
+        const RADIO_CONFIG_SIGNAL sig = SIGNAL_OBSERVE_INDICATION_0 + index;
+        RadioConfigSignalForward* fwd = self->ind_fwd + index;
+        RadioInstance* inst = self->base.instance;
 
         /* Register signal on demand */
         if (!radio_config_signals[sig]) {
             radio_config_signals[sig] =
-                g_signal_new(radio_config_signal_observe_indication_name[pi],
-                    THIS_TYPE, G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED,
+                g_signal_new(radio_config_signal_observe_indication_name[index],
+                    THIS_TYPE, G_SIGNAL_RUN_FIRST|G_SIGNAL_DETAILED,
                     0, NULL, NULL, NULL, G_TYPE_NONE,
                     2, G_TYPE_UINT, G_TYPE_POINTER);
         }
 
+        /* Register forwarder on demand, too */
+        if (!fwd->id) {
+            fwd->self = self;
+            fwd->sig = sig;
+            fwd->id = radio_instance_add_indication_observer_with_priority(inst,
+                priority, RADIO_IND_ANY, radio_config_indication_observer, fwd);
+        }
+
         return g_signal_connect_closure_by_id(self,
             radio_config_signals[sig],
-            radio_config_ind_quark(self, code),
+            radio_instance_ind_quark(inst, code),
             g_cclosure_new(G_CALLBACK(func), user_data, NULL), FALSE);
     }
     return 0;
@@ -986,85 +672,6 @@ radio_config_remove_handlers(
 }
 
 /*==========================================================================*
- * Methods
- *==========================================================================*/
-
-static
-gboolean
-radio_config_is_dead(
-    RadioBase* base)
-{
-    return THIS(base)->dead;
-}
-
-static
-gboolean
-radio_config_can_submit_requests(
-    RadioBase* base)
-{
-    return !radio_config_is_dead(base);
-}
-
-static
-GBinderLocalRequest*
-radio_config_new_request(
-    RadioBase* base,
-    guint32 code)
-{
-    return gbinder_client_new_request2(THIS(base)->client, code);
-}
-
-static
-gulong
-radio_config_send_request(
-    RadioBase* base,
-    RadioRequest* req,
-    RadioBaseRequestSentFunc callback)
-{
-    RadioConfig* self = THIS(base);
-    RadioConfigCall* call = g_slice_new(RadioConfigCall);
-    GQuark quark = 0;
-    gulong tx_id;
-    int i;
-
-    call->object = base;
-    call->callback = callback;
-    call->req = radio_request_ref(req);
-
-    /* Notify the observers first */
-    for (i = RADIO_OBSERVER_PRIORITY_COUNT - 1; i >= 0; i--) {
-        guint id = radio_config_signals[SIGNAL_OBSERVE_REQUEST_0 + i];
-
-        if (id) {
-            if (!quark) {
-                quark = radio_config_req_quark(self, req->code);
-            }
-            g_signal_emit(self, id, quark, req->code, req->args);
-        }
-    }
-
-    /* Then actually submit the request */
-    tx_id = gbinder_client_transact(self->client, req->code,
-        GBINDER_TX_FLAG_ONEWAY, req->args, radio_config_call_complete,
-        (GDestroyNotify) radio_config_call_free, call);
-    if (tx_id) {
-        return tx_id;
-    } else {
-        radio_config_call_free(call);
-        return 0;
-    }
-}
-
-static
-void
-radio_config_cancel_request(
-    RadioBase* base,
-    gulong id)
-{
-    gbinder_client_cancel(THIS(base)->client, id);
-}
-
-/*==========================================================================*
  * Internals
  *==========================================================================*/
 
@@ -1073,9 +680,6 @@ void
 radio_config_init(
     RadioConfig* self)
 {
-    self->req_quarks = g_hash_table_new(g_direct_hash, g_direct_equal);
-    self->resp_quarks = g_hash_table_new(g_direct_hash, g_direct_equal);
-    self->ind_quarks = g_hash_table_new(g_direct_hash, g_direct_equal);
 }
 
 static
@@ -1084,12 +688,14 @@ radio_config_finalize(
     GObject* object)
 {
     RadioConfig* self = THIS(object);
+    RadioInstance* inst = self->base.instance;
+    int i;
 
-    radio_config_drop_binder(self);
-    gbinder_client_unref(self->client);
-    g_hash_table_destroy(self->req_quarks);
-    g_hash_table_destroy(self->resp_quarks);
-    g_hash_table_destroy(self->ind_quarks);
+    for (i = 0; i < RADIO_OBSERVER_PRIORITY_COUNT; i++) {
+        radio_instance_remove_handler(inst, self->req_fwd[i].id);
+        radio_instance_remove_handler(inst, self->resp_fwd[i].id);
+        radio_instance_remove_handler(inst, self->ind_fwd[i].id);
+    }
     G_OBJECT_CLASS(PARENT_CLASS)->finalize(object);
 }
 
@@ -1098,25 +704,7 @@ void
 radio_config_class_init(
     RadioConfigClass* klass)
 {
-    RadioBaseClass* base_class = RADIO_BASE_CLASS(klass);
-    GObjectClass* object_class = G_OBJECT_CLASS(klass);
-    GType type = G_OBJECT_CLASS_TYPE(klass);
-
-    base_class->is_dead = radio_config_is_dead;
-    base_class->can_submit_requests = radio_config_can_submit_requests;
-    base_class->new_request = radio_config_new_request;
-    base_class->send_request = radio_config_send_request;
-    base_class->cancel_request = radio_config_cancel_request;
-    object_class->finalize = radio_config_finalize;
-
-    /* Priority-based signals are registered on demand */
-    radio_config_signals[SIGNAL_INDICATION] =
-        g_signal_new(SIGNAL_INDICATION_NAME, type,
-            G_SIGNAL_RUN_FIRST | G_SIGNAL_DETAILED, 0, NULL, NULL, NULL,
-            G_TYPE_NONE, 2, G_TYPE_UINT, G_TYPE_POINTER);
-    radio_config_signals[SIGNAL_DEATH] =
-        g_signal_new(SIGNAL_DEATH_NAME, type, G_SIGNAL_RUN_FIRST, 0,
-            NULL, NULL, NULL, G_TYPE_NONE, 0);
+    G_OBJECT_CLASS(klass)->finalize = radio_config_finalize;
 }
 
 /*

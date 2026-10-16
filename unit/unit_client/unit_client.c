@@ -43,15 +43,30 @@
 
 #include "radio_client.h"
 #include "radio_instance.h"
+#include "radio_logger.h"
 #include "radio_request_p.h"
 #include "radio_request_group_p.h"
 #include "radio_util.h"
 
 #include <gutil_strv.h>
 #include <gutil_log.h>
+#include <gutil_macros.h>
 
 #define DEFAULT_INTERFACE RADIO_INTERFACE_1_0
 #define DEV GBINDER_DEFAULT_HWBINDER
+
+#define WILDCARD_CHAR    '\x81'
+#define WILDCARD_CHAR_S  "\x81"
+#define WILDCARD_XCHAR   '\x8d'
+#define WILDCARD_XCHAR_S "\x8d"
+
+#define WILDCARD_CHAR2 WILDCARD_CHAR_S WILDCARD_CHAR_S
+#define WILDCARD_CHAR3 WILDCARD_CHAR2 WILDCARD_CHAR_S
+#define WILDCARD_CHAR4 WILDCARD_CHAR2 WILDCARD_CHAR2
+
+#define WILDCARD_XCHAR2 WILDCARD_XCHAR_S WILDCARD_XCHAR_S
+#define WILDCARD_XCHAR4 WILDCARD_XCHAR2 WILDCARD_XCHAR2
+#define WILDCARD_XCHAR8 WILDCARD_XCHAR4 WILDCARD_XCHAR4
 
 static TestOpt test_opt;
 
@@ -153,6 +168,24 @@ test_unref_request_later(
 {
     radio_request_unref((RadioRequest*)user_data);
     return G_SOURCE_REMOVE;
+}
+
+static
+void
+test_match_prefix(
+    char* str,
+    char* pattern)
+{
+    while (*pattern) {
+        g_assert(*str);
+        if (*pattern == WILDCARD_XCHAR) {
+            g_assert_true(g_ascii_isxdigit(*str));
+        } else if (*pattern != WILDCARD_CHAR) {
+            g_assert(*str == *pattern);
+        }
+        pattern++;
+        str++;
+    }
 }
 
 /*==========================================================================*
@@ -298,20 +331,53 @@ test_service_cleanup(
  * Common setup for all tests
  *==========================================================================*/
 
+typedef struct test_log {
+    GLogModule module;
+    GString* buf;
+} TestLog;
+
 typedef struct test_common {
     TestRadioService service;
+    TestLog log;
     GBinderServiceManager* sm;
     GBinderRemoteObject* remote;
     RadioInstance* radio;
     RadioClient* client;
+    RadioLogger* trace;
+    RadioLogger* dump;
 } TestCommon;
+
+static
+void
+test_log_fn(
+    const GLogModule* module,
+    int level,
+    const char* format,
+    va_list va)
+{
+    TestLog* log = G_CAST(module, TestLog, module);
+    const guint prev_len = log->buf->len;
+
+    g_string_append_vprintf(log->buf, format, va);
+    GDEBUG("%s", log->buf->str + prev_len);
+    g_string_append_c(log->buf, '\n');
+}
 
 static
 RadioClient*
 test_common_init(
     TestCommon* test)
 {
+    GLogModule* log = &test->log.module;
+    const char* prefix = "slot1";
+
     memset(test, 0, sizeof(*test));
+    test->log.buf = g_string_new(NULL);
+    log->name = "test";
+    *((int*)&log->max_level) = GLOG_LEVEL_VERBOSE;
+    log->level = GLOG_LEVEL_VERBOSE;
+    log->log_proc = test_log_fn;
+    test->sm = gbinder_servicemanager_new(DEV);
     test->sm = gbinder_servicemanager_new(DEV);
     test_service_init(&test->service);
     test->remote = test_gbinder_servicemanager_new_service(test->sm,
@@ -319,6 +385,10 @@ test_common_init(
     test->radio = radio_instance_new_with_version(DEV, "slot1",
         RADIO_INTERFACE_1_0);
     test->client = radio_client_new(test->radio);
+    test->trace = radio_logger_new_trace(test->radio,
+        &test->log.module, GLOG_LEVEL_ALWAYS, prefix);
+    test->dump = radio_logger_new_dump(test->radio,
+        &test->log.module, GLOG_LEVEL_ALWAYS, prefix);
     g_assert(test->client);
     return test->client;
 }
@@ -349,6 +419,9 @@ test_common_cleanup(
     test_service_cleanup(&test->service);
     gbinder_remote_object_unref(test->remote);
     gbinder_servicemanager_unref(test->sm);
+    radio_logger_free(test->trace);
+    radio_logger_free(test->dump);
+    g_string_free(test->log.buf, TRUE);
 }
 
 /*==========================================================================*
@@ -518,6 +591,10 @@ test_null(
     g_assert_cmpint(radio_request_group_block(NULL), ==, RADIO_BLOCK_NONE);
     g_assert_cmpint(radio_request_group_block_status(NULL), ==,
         RADIO_BLOCK_NONE);
+
+    g_assert_null(radio_logger_new_trace(NULL, NULL, 0, NULL));
+    g_assert_null(radio_logger_new_dump(NULL, NULL, 0, NULL));
+    radio_logger_free(NULL);
 }
 
 /*==========================================================================*
@@ -747,6 +824,11 @@ test_ind(
     g_assert_cmpint(test.ind, == ,RADIO_IND_RIL_CONNECTED);
     g_assert_cmpint(test.ind2, == ,RADIO_IND_RIL_CONNECTED);
     g_assert_cmpint(connected, == ,1);
+    test_match_prefix(test.common.log.buf->str,
+"slot1 > 33 rilConnected\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 40 31  2e 30 3a 3a 49 52 61 64    .radio@1 .0::IRad\n"
+"  0020: 69 6f 49 6e 64 69 63 61  74 69 6f 6e 01 00 00 00    ioIndica tion....\n");
 
     /* Cleanup */
     radio_client_remove_all_handlers(client, id);
@@ -856,6 +938,30 @@ test_resp(
     g_assert_cmpint(gbinder_client_transact_sync_oneway(resp_client,
         RADIO_RESP_GET_MUTE, resp), == ,GBINDER_STATUS_OK);
     gbinder_local_request_unref(resp);
+
+    test_match_prefix(test.common.log.buf->str,
+"slot1 > 33 rilConnected\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 40 31  2e 30 3a 3a 49 52 61 64    .radio@1 .0::IRad\n"
+"  0020: 69 6f 49 6e 64 69 63 61  74 69 6f 6e 01 00 00 00    ioIndica tion....\n"
+"slot1 < [" WILDCARD_XCHAR8 "] 53 getMute\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 40 31  2e 30 3a 3a 49 52 61 64    .radio@1 .0::IRad\n"
+"  0020: 69 6f "
+WILDCARD_XCHAR2 " " WILDCARD_XCHAR2 " " WILDCARD_XCHAR2 " " WILDCARD_XCHAR2
+"                                   io" WILDCARD_CHAR4 "\n"
+"slot1 < [" WILDCARD_XCHAR8 "] 53 getMute\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 40 31  2e 30 3a 3a 49 52 61 64    .radio@1 .0::IRad\n"
+"  0020: 69 6f "
+WILDCARD_XCHAR2 " " WILDCARD_XCHAR2 " " WILDCARD_XCHAR2 " " WILDCARD_XCHAR2
+"                                   io" WILDCARD_CHAR4 "\n"
+"slot1 < 130 responseAcknowledgement\n"
+"slot1 > [" WILDCARD_XCHAR8 "] ack\n"
+"slot1 > [" WILDCARD_XCHAR8 "] 52 getMuteResponse\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 40 31  2e 30 3a 3a 49 52 61 64    .radio@1 .0::IRad\n"
+"  0020: 69 6f 52 65 73 70 6f 6e  73 65");
 
     /* Cleanup */
     test_simple_cleanup(&test);

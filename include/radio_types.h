@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2018-2022 Jolla Ltd.
  * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  * Copyright (C) 2021 Open Mobile Platform LLC.
@@ -45,38 +46,11 @@ G_BEGIN_DECLS
 typedef struct radio_client RadioClient;
 typedef struct radio_config RadioConfig;
 typedef struct radio_instance RadioInstance;
+typedef struct radio_logger RadioLogger;
 typedef struct radio_registry RadioRegistry;
 typedef struct radio_request RadioRequest;
 typedef struct radio_request_group RadioRequestGroup;
-
-typedef enum radio_block_status {
-    RADIO_BLOCK_NONE,
-    RADIO_BLOCK_QUEUED,
-    RADIO_BLOCK_ACQUIRED
-} RADIO_BLOCK; /* Since 1.4.3 */
-
-typedef enum radio_interface {
-    RADIO_INTERFACE_NONE = -1, /* Since 1.4.3 */
-    RADIO_INTERFACE_1_0,
-    RADIO_INTERFACE_1_1,
-    RADIO_INTERFACE_1_2,
-    RADIO_INTERFACE_1_3,
-    RADIO_INTERFACE_1_4,
-    RADIO_INTERFACE_1_5, /* Since 1.5.0 */
-    RADIO_INTERFACE_COUNT
-} RADIO_INTERFACE; /* Since 1.2.0 */
-
-typedef enum radio_aidl_interface {
-    RADIO_AIDL_INTERFACE_NONE = -1,
-    RADIO_DATA_INTERFACE,
-    RADIO_IMS_INTERFACE,
-    RADIO_MESSAGING_INTERFACE,
-    RADIO_MODEM_INTERFACE,
-    RADIO_NETWORK_INTERFACE,
-    RADIO_SIM_INTERFACE,
-    RADIO_VOICE_INTERFACE,
-    RADIO_AIDL_INTERFACE_COUNT
-} RADIO_AIDL_INTERFACE; /* Since 1.6.0 */
+typedef struct gbinder_client_iface_info RadioClientIfaceInfo;
 
 typedef enum radio_interface_type {
     RADIO_INTERFACE_TYPE_NONE,
@@ -84,11 +58,116 @@ typedef enum radio_interface_type {
     RADIO_INTERFACE_TYPE_AIDL,
 } RADIO_INTERFACE_TYPE; /* Since 1.6.0 */
 
-typedef enum radio_observer_priority {
-    RADIO_OBSERVER_PRIORITY_LOWEST,
-    RADIO_OBSERVER_PRIORITY_DEFAULT = 2,
-    RADIO_OBSERVER_PRIORITY_HIGHEST = 7
-} RADIO_OBSERVER_PRIORITY; /* Since 1.4.6 */
+/*
+ * RadioInterfaceDesc[2] allows to create custom RadioInstances which
+ * work with with radio interfaces other than the ones directly supported
+ * by this library, as long as those interfaces work the same way, roughly
+ * like this:
+ *
+ *       RadioRequest                RadioClientIndicationFunc
+ *      ==============               =========================
+ *        |         ^                           ^
+ *     submit()     |                           |
+ *        |         |                           |
+ *        |      complete()                     |
+ *        |         |                           |
+ * +------|---------|---------------------------|-----------+
+ * |      |         |     RadioInstance         |           |
+ * |      |    +=================+   +===================+  |
+ * |      |    | Response object |   | Indication object |  |
+ * |      |    | (resp_ifaces)   |   | (ind_ifaces)      |  |
+ * |      |    +=================+   +===================+  |
+ * |      |         ^                           ^           |
+ * +------|---------|---------------------------|-----------+
+ *        |         |                           |
+ *     Request      |                           |
+ *   (serial, ...)  |                           |
+ *        |         |                           |
+ * <------------------------- binder ----------------------->
+ *        |         |                           |
+ *        |       Response                      |
+ *        |  (RadioResponseInfo, ...)           |
+ *        |         |                           |
+ *        v         |                           |
+ *    +===================+                     |
+ *    | (req_iface)       |----- Indication ----+
+ *    | Radio service     |  (RadioResponseInfo, ...)
+ *    +===================+
+ *
+ * RadioServiceDesc2 is an extended version of RadioServiceDesc which
+ * allows multiple response/indication objects to be registered with
+ * the same remote object. Some vendor specific radio services need that.
+ */
+
+typedef struct radio_tx_name {
+    guint code;
+    const char* name;
+} RadioTxName; /* Since 1.7.0 */
+
+/* Terminates a RadioTxName array */
+#define RADIO_TX_NAMES_END  { 0, NULL } /* Since 1.7.0 */
+
+typedef struct radio_interface_desc {
+    const char* const* ifaces;   /* NULL terminated */
+    const RadioTxName* tx_names; /* Terminated by RADIO_TX_NAMES_END */
+} RadioInterfaceDesc; /* Since 1.7.0 */
+
+typedef struct radio_response_functions_desc {
+    const RadioInterfaceDesc* resp;
+    const RadioInterfaceDesc* ind;
+    guint set_response_functions_req;
+    guint connected_ind;
+} RadioResponseFunctionsDesc; /* Since 1.7.0 */
+
+/* Terminates a RadioResponseFunctionsDesc array */
+#define RADIO_RESPONSE_FUNCTIONS_END  { NULL, NULL, 0, 0 } /* Since 1.7.0 */
+
+/* Termanates a RadioClientIfaceInfo array */
+#define RADIO_IFACE_INFO_END  { NULL, 0 } /* Since 1.7.0 */
+
+typedef struct radio_service_desc {
+    RADIO_INTERFACE_TYPE interface_type;
+    const char* req_iface;
+    const RadioTxName* req_names;
+    const RadioClientIfaceInfo* iface_info;
+    const RadioInterfaceDesc* resp;
+    const RadioInterfaceDesc* ind;
+    guint set_response_functions_req;
+    guint ack_req;
+    guint resp_ack_req;
+    guint connected_ind;
+} RadioServiceDesc; /* Since 1.7.0 */
+
+typedef struct radio_service_desc2 {
+    RADIO_INTERFACE_TYPE interface_type;
+    const char* req_iface;
+    const RadioTxName* req_names;
+    const RadioClientIfaceInfo* iface_info;
+    const RadioResponseFunctionsDesc* resp_fn;
+    guint ack_req;
+    guint resp_ack_req;
+} RadioServiceDesc2; /* Since 1.7.0 */
+
+/*
+ * The "extended" response/indication code is composed of the interface
+ * specific transaction code (low 20 bit) and the RadioResponseFunctionsDesc
+ * index, from the range [0...resp_fn_count). Since the first index is 0,
+ * this scheme is nicely and naturally backward compatible. A non-zero
+ * receiver index can only appear if the RadioInstance was created with
+ * radio_instance_new_with_service_desc2()
+ *
+ * It leaves room for 1048575 transaction codes (zero is not a valid
+ * transaction code) and at least 4096 pairs of response/indication
+ * receivers. That's plenty.
+ *
+ * RADIO_TX_* macros exist since version 1.7.0
+ */
+#define RADIO_TX_INDEX_SHIFT    (20)
+#define RADIO_TX_CODE_MASK      ((1 << RADIO_TX_INDEX_SHIFT) - 1)
+#define RADIO_TX_INDEX(tx)      (((guint)(tx)) >> RADIO_TX_INDEX_SHIFT)
+#define RADIO_TX_CODE(code)     (((guint)(code)) & RADIO_TX_CODE_MASK)
+#define RADIO_TX_EXT_CODE(i,tx) (RADIO_TX_CODE(tx) ? \
+    ((((guint)(i)) << RADIO_TX_INDEX_SHIFT) | RADIO_TX_CODE(tx)) : 0)
 
 #define RADIO_IFACE_PREFIX     "android.hardware.radio@"
 #define RADIO_IFACE            "IRadio"
@@ -119,6 +198,41 @@ typedef enum radio_observer_priority {
 #define RADIO_INDICATION_1_4   RADIO_IFACE_1_4(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_5   RADIO_IFACE_1_5(RADIO_INDICATION_IFACE)
 
+typedef enum radio_interface {
+    RADIO_INTERFACE_NONE = -1, /* Since 1.4.3 */
+    RADIO_INTERFACE_1_0,
+    RADIO_INTERFACE_1_1,
+    RADIO_INTERFACE_1_2,
+    RADIO_INTERFACE_1_3,
+    RADIO_INTERFACE_1_4,
+    RADIO_INTERFACE_1_5, /* Since 1.5.0 */
+    RADIO_INTERFACE_COUNT
+} RADIO_INTERFACE; /* Since 1.2.0 */
+
+typedef enum radio_aidl_interface {
+    RADIO_AIDL_INTERFACE_NONE = -1,
+    RADIO_DATA_INTERFACE,
+    RADIO_IMS_INTERFACE,
+    RADIO_MESSAGING_INTERFACE,
+    RADIO_MODEM_INTERFACE,
+    RADIO_NETWORK_INTERFACE,
+    RADIO_SIM_INTERFACE,
+    RADIO_VOICE_INTERFACE,
+    RADIO_AIDL_INTERFACE_COUNT
+} RADIO_AIDL_INTERFACE; /* Since 1.6.0 */
+
+typedef enum radio_block_status {
+    RADIO_BLOCK_NONE,
+    RADIO_BLOCK_QUEUED,
+    RADIO_BLOCK_ACQUIRED
+} RADIO_BLOCK; /* Since 1.4.3 */
+
+typedef enum radio_observer_priority {
+    RADIO_OBSERVER_PRIORITY_LOWEST,
+    RADIO_OBSERVER_PRIORITY_DEFAULT = 2,
+    RADIO_OBSERVER_PRIORITY_HIGHEST = 7
+} RADIO_OBSERVER_PRIORITY; /* Since 1.4.6 */
+
 /* Types defined in types.hal */
 
 #define RADIO_ALIGNED(x) __attribute__ ((aligned(x)))
@@ -136,91 +250,97 @@ typedef enum radio_ind_type {
 } RADIO_IND_TYPE;
 G_STATIC_ASSERT(sizeof(RADIO_IND_TYPE) == 4);
 
+/* e(value,NAME) */
+#define RADIO_ERRORS(e) /* Since 1.7.0 */ \
+    e(0,NONE) \
+    e(1,RADIO_NOT_AVAILABLE) \
+    e(2,GENERIC_FAILURE) \
+    e(3,PASSWORD_INCORRECT) \
+    e(4,SIM_PIN2) \
+    e(5,SIM_PUK2) \
+    e(6,REQUEST_NOT_SUPPORTED) \
+    e(7,CANCELLED) \
+    e(8,OP_NOT_ALLOWED_DURING_VOICE_CALL) \
+    e(9,OP_NOT_ALLOWED_BEFORE_REG_TO_NW) \
+    e(10,SMS_SEND_FAIL_RETRY) \
+    e(11,SIM_ABSENT) \
+    e(12,SUBSCRIPTION_NOT_AVAILABLE) \
+    e(13,MODE_NOT_SUPPORTED) \
+    e(14,FDN_CHECK_FAILURE) \
+    e(15,ILLEGAL_SIM_OR_ME) \
+    e(16,MISSING_RESOURCE) \
+    e(17,NO_SUCH_ELEMENT) \
+    e(18,DIAL_MODIFIED_TO_USSD) \
+    e(19,DIAL_MODIFIED_TO_SS) \
+    e(20,DIAL_MODIFIED_TO_DIAL) \
+    e(21,USSD_MODIFIED_TO_DIAL) \
+    e(22,USSD_MODIFIED_TO_SS) \
+    e(23,USSD_MODIFIED_TO_USSD) \
+    e(24,SS_MODIFIED_TO_DIAL) \
+    e(25,SS_MODIFIED_TO_USSD) \
+    e(26,SUBSCRIPTION_NOT_SUPPORTED) \
+    e(27,SS_MODIFIED_TO_SS) \
+    e(36,LCE_NOT_SUPPORTED) \
+    e(37,NO_MEMORY) \
+    e(38,INTERNAL_ERR) \
+    e(39,SYSTEM_ERR) \
+    e(40,MODEM_ERR) \
+    e(41,INVALID_STATE) \
+    e(42,NO_RESOURCES) \
+    e(43,SIM_ERR) \
+    e(44,INVALID_ARGUMENTS) \
+    e(45,INVALID_SIM_STATE) \
+    e(46,INVALID_MODEM_STATE) \
+    e(47,INVALID_CALL_ID) \
+    e(48,NO_SMS_TO_ACK) \
+    e(49,NETWORK_ERR) \
+    e(50,REQUEST_RATE_LIMITED) \
+    e(51,SIM_BUSY) \
+    e(52,SIM_FULL) \
+    e(53,NETWORK_REJECT) \
+    e(54,OPERATION_NOT_ALLOWED) \
+    e(55,EMPTY_RECORD) \
+    e(56,INVALID_SMS_FORMAT) \
+    e(57,ENCODING_ERR) \
+    e(58,INVALID_SMSC_ADDRESS) \
+    e(59,NO_SUCH_ENTRY) \
+    e(60,NETWORK_NOT_READY) \
+    e(61,NOT_PROVISIONED) \
+    e(62,NO_SUBSCRIPTION) \
+    e(63,NO_NETWORK_FOUND) \
+    e(64,DEVICE_IN_USE) \
+    e(65,ABORTED) \
+    e(66,INVALID_RESPONSE) \
+    e(501,OEM_ERROR_1) \
+    e(502,OEM_ERROR_2) \
+    e(503,OEM_ERROR_3) \
+    e(504,OEM_ERROR_4) \
+    e(505,OEM_ERROR_5) \
+    e(506,OEM_ERROR_6) \
+    e(507,OEM_ERROR_7) \
+    e(508,OEM_ERROR_8) \
+    e(509,OEM_ERROR_9) \
+    e(510,OEM_ERROR_10) \
+    e(511,OEM_ERROR_11) \
+    e(512,OEM_ERROR_12) \
+    e(513,OEM_ERROR_13) \
+    e(514,OEM_ERROR_14) \
+    e(515,OEM_ERROR_15) \
+    e(516,OEM_ERROR_16) \
+    e(517,OEM_ERROR_17) \
+    e(518,OEM_ERROR_18) \
+    e(519,OEM_ERROR_19) \
+    e(520,OEM_ERROR_20) \
+    e(521,OEM_ERROR_21) \
+    e(522,OEM_ERROR_22) \
+    e(523,OEM_ERROR_23) \
+    e(524,OEM_ERROR_24) \
+    e(525,OEM_ERROR_25)
+
 typedef enum radio_error {
-    RADIO_ERROR_NONE = 0,
-    RADIO_ERROR_RADIO_NOT_AVAILABLE = 1,
-    RADIO_ERROR_GENERIC_FAILURE = 2,
-    RADIO_ERROR_PASSWORD_INCORRECT = 3,
-    RADIO_ERROR_SIM_PIN2 = 4,
-    RADIO_ERROR_SIM_PUK2 = 5,
-    RADIO_ERROR_REQUEST_NOT_SUPPORTED = 6,
-    RADIO_ERROR_CANCELLED = 7,
-    RADIO_ERROR_OP_NOT_ALLOWED_DURING_VOICE_CALL = 8,
-    RADIO_ERROR_OP_NOT_ALLOWED_BEFORE_REG_TO_NW = 9,
-    RADIO_ERROR_SMS_SEND_FAIL_RETRY = 10,
-    RADIO_ERROR_SIM_ABSENT = 11,
-    RADIO_ERROR_SUBSCRIPTION_NOT_AVAILABLE = 12,
-    RADIO_ERROR_MODE_NOT_SUPPORTED = 13,
-    RADIO_ERROR_FDN_CHECK_FAILURE = 14,
-    RADIO_ERROR_ILLEGAL_SIM_OR_ME = 15,
-    RADIO_ERROR_MISSING_RESOURCE = 16,
-    RADIO_ERROR_NO_SUCH_ELEMENT = 17,
-    RADIO_ERROR_DIAL_MODIFIED_TO_USSD = 18,
-    RADIO_ERROR_DIAL_MODIFIED_TO_SS = 19,
-    RADIO_ERROR_DIAL_MODIFIED_TO_DIAL = 20,
-    RADIO_ERROR_USSD_MODIFIED_TO_DIAL = 21,
-    RADIO_ERROR_USSD_MODIFIED_TO_SS = 22,
-    RADIO_ERROR_USSD_MODIFIED_TO_USSD = 23,
-    RADIO_ERROR_SS_MODIFIED_TO_DIAL = 24,
-    RADIO_ERROR_SS_MODIFIED_TO_USSD = 25,
-    RADIO_ERROR_SUBSCRIPTION_NOT_SUPPORTED = 26,
-    RADIO_ERROR_SS_MODIFIED_TO_SS = 27,
-    RADIO_ERROR_LCE_NOT_SUPPORTED = 36,
-    RADIO_ERROR_NO_MEMORY = 37,
-    RADIO_ERROR_INTERNAL_ERR = 38,
-    RADIO_ERROR_SYSTEM_ERR = 39,
-    RADIO_ERROR_MODEM_ERR = 40,
-    RADIO_ERROR_INVALID_STATE = 41,
-    RADIO_ERROR_NO_RESOURCES = 42,
-    RADIO_ERROR_SIM_ERR = 43,
-    RADIO_ERROR_INVALID_ARGUMENTS = 44,
-    RADIO_ERROR_INVALID_SIM_STATE = 45,
-    RADIO_ERROR_INVALID_MODEM_STATE = 46,
-    RADIO_ERROR_INVALID_CALL_ID = 47,
-    RADIO_ERROR_NO_SMS_TO_ACK = 48,
-    RADIO_ERROR_NETWORK_ERR = 49,
-    RADIO_ERROR_REQUEST_RATE_LIMITED = 50,
-    RADIO_ERROR_SIM_BUSY = 51,
-    RADIO_ERROR_SIM_FULL = 52,
-    RADIO_ERROR_NETWORK_REJECT = 53,
-    RADIO_ERROR_OPERATION_NOT_ALLOWED = 54,
-    RADIO_ERROR_EMPTY_RECORD = 55,
-    RADIO_ERROR_INVALID_SMS_FORMAT = 56,
-    RADIO_ERROR_ENCODING_ERR = 57,
-    RADIO_ERROR_INVALID_SMSC_ADDRESS = 58,
-    RADIO_ERROR_NO_SUCH_ENTRY = 59,
-    RADIO_ERROR_NETWORK_NOT_READY = 60,
-    RADIO_ERROR_NOT_PROVISIONED = 61,
-    RADIO_ERROR_NO_SUBSCRIPTION = 62,
-    RADIO_ERROR_NO_NETWORK_FOUND = 63,
-    RADIO_ERROR_DEVICE_IN_USE = 64,
-    RADIO_ERROR_ABORTED = 65,
-    RADIO_ERROR_INVALID_RESPONSE = 66,
-    RADIO_ERROR_OEM_ERROR_1 = 501,
-    RADIO_ERROR_OEM_ERROR_2 = 502,
-    RADIO_ERROR_OEM_ERROR_3 = 503,
-    RADIO_ERROR_OEM_ERROR_4 = 504,
-    RADIO_ERROR_OEM_ERROR_5 = 505,
-    RADIO_ERROR_OEM_ERROR_6 = 506,
-    RADIO_ERROR_OEM_ERROR_7 = 507,
-    RADIO_ERROR_OEM_ERROR_8 = 508,
-    RADIO_ERROR_OEM_ERROR_9 = 509,
-    RADIO_ERROR_OEM_ERROR_10 = 510,
-    RADIO_ERROR_OEM_ERROR_11 = 511,
-    RADIO_ERROR_OEM_ERROR_12 = 512,
-    RADIO_ERROR_OEM_ERROR_13 = 513,
-    RADIO_ERROR_OEM_ERROR_14 = 514,
-    RADIO_ERROR_OEM_ERROR_15 = 515,
-    RADIO_ERROR_OEM_ERROR_16 = 516,
-    RADIO_ERROR_OEM_ERROR_17 = 517,
-    RADIO_ERROR_OEM_ERROR_18 = 518,
-    RADIO_ERROR_OEM_ERROR_19 = 519,
-    RADIO_ERROR_OEM_ERROR_20 = 520,
-    RADIO_ERROR_OEM_ERROR_21 = 521,
-    RADIO_ERROR_OEM_ERROR_22 = 522,
-    RADIO_ERROR_OEM_ERROR_23 = 523,
-    RADIO_ERROR_OEM_ERROR_24 = 524,
-    RADIO_ERROR_OEM_ERROR_25 = 525
+    #define RADIO_ERROR_ENUM_(value,NAME) RADIO_ERROR_##NAME = value,
+    RADIO_ERRORS(RADIO_ERROR_ENUM_)
+    #undef RADIO_ERROR_ENUM_
 } RADIO_ERROR; /* Since 1.4.3 */
 G_STATIC_ASSERT(sizeof(RADIO_ERROR) == 4);
 
