@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021 Jolla Ltd.
  * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
  *
@@ -70,6 +71,7 @@ struct test_gbinder_data {
 };
 
 typedef struct test_gbinder_reader {
+    TestGBinderData* data;
     TestGBinderDataItem* item;
 } TestGBinderReader;
 
@@ -77,10 +79,12 @@ typedef struct test_gbinder_writer {
     TestGBinderData* data;
 } TestGBinderWriter;
 
-static inline TestGBinderReader* test_gbinder_reader_cast(GBinderReader* reader)
+static inline TestGBinderReader*
+test_gbinder_reader_cast(const GBinderReader* reader)
     { return (TestGBinderReader*)reader; }
 
-static inline TestGBinderWriter* test_gbinder_writer_cast(GBinderWriter* writer)
+static inline TestGBinderWriter*
+test_gbinder_writer_cast(const GBinderWriter* writer)
     { return (TestGBinderWriter*)writer; }
 
 static
@@ -310,7 +314,9 @@ test_gbinder_data_init_reader(
 {
     memset(reader, 0, sizeof(*reader));
     if (data) {
-        test_gbinder_reader_cast(reader)->item = data->items;
+        TestGBinderReader* impl = test_gbinder_reader_cast(reader);
+
+        impl->item = (impl->data = data)->items;
     }
 }
 
@@ -330,6 +336,24 @@ test_gbinder_data_init_writer(
 /*==========================================================================*
  * libgbinder API
  *==========================================================================*/
+
+const void*
+gbinder_reader_get_data(
+    const GBinderReader* reader,
+    gsize* size)
+{
+    TestGBinderReader* self = test_gbinder_reader_cast(reader);
+    TestGBinderData* data = self->data;
+    void* buf = test_gbinder_data_buffer(data, size);
+
+    if (buf) {
+        if (!data->pool) {
+            data->pool = gutil_idle_pool_new();
+        }
+        gutil_idle_pool_add(data->pool, buf, g_free);
+    }
+    return buf;
+}
 
 gboolean
 gbinder_reader_read_uint32(
