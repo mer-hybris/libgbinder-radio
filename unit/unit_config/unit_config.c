@@ -39,12 +39,27 @@
 #include "test_gbinder.h"
 
 #include "radio_config.h"
+#include "radio_logger.h"
 #include "radio_request_p.h"
 
 #include <gutil_strv.h>
 #include <gutil_log.h>
+#include <gutil_macros.h>
 
 #define DEV GBINDER_DEFAULT_HWBINDER
+
+#define WILDCARD_CHAR    '\x81'
+#define WILDCARD_CHAR_S  "\x81"
+#define WILDCARD_XCHAR   '\x8d'
+#define WILDCARD_XCHAR_S "\x8d"
+
+#define WILDCARD_CHAR2 WILDCARD_CHAR_S WILDCARD_CHAR_S
+#define WILDCARD_CHAR3 WILDCARD_CHAR2 WILDCARD_CHAR_S
+#define WILDCARD_CHAR4 WILDCARD_CHAR2 WILDCARD_CHAR2
+
+#define WILDCARD_XCHAR2 WILDCARD_XCHAR_S WILDCARD_XCHAR_S
+#define WILDCARD_XCHAR4 WILDCARD_XCHAR2 WILDCARD_XCHAR2
+#define WILDCARD_XCHAR8 WILDCARD_XCHAR4 WILDCARD_XCHAR4
 
 static TestOpt test_opt;
 
@@ -143,6 +158,24 @@ test_config_req_resp(
     return RADIO_CONFIG_RESP_NONE;
 }
 
+static
+void
+test_match_prefix(
+    char* str,
+    char* pattern)
+{
+    while (*pattern) {
+        g_assert(*str);
+        if (*pattern == WILDCARD_XCHAR) {
+            g_assert_true(g_ascii_isxdigit(*str));
+        } else if (*pattern != WILDCARD_CHAR) {
+            g_assert(*str == *pattern);
+        }
+        pattern++;
+        str++;
+    }
+}
+
 /*==========================================================================*
  * Test IRadioConfig service
  *==========================================================================*/
@@ -236,7 +269,7 @@ test_config_service_txproc(
                     resp_code, GBINDER_TX_FLAG_ONEWAY, resp, NULL, NULL, NULL));
                 break;
             default:
-                /* No expecting anything else */
+                /* Not expecting anything else */
                 g_assert_not_reached();
                 break;
             }
@@ -278,12 +311,36 @@ test_config_service_cleanup(
  * Common setup for all tests
  *==========================================================================*/
 
+typedef struct test_log {
+    GLogModule module;
+    GString* buf;
+} TestLog;
+
 typedef struct test_common {
     TestConfigService service;
+    TestLog log;
     GBinderServiceManager* sm;
     GBinderRemoteObject* remote[RADIO_CONFIG_INTERFACE_COUNT];
     RadioConfig* client;
+    RadioLogger* trace;
+    RadioLogger* dump;
 } TestCommon;
+
+static
+void
+test_log_fn(
+    const GLogModule* module,
+    int level,
+    const char* format,
+    va_list va)
+{
+    TestLog* log = G_CAST(module, TestLog, module);
+    const guint prev_len = log->buf->len;
+
+    g_string_append_vprintf(log->buf, format, va);
+    GDEBUG("%s", log->buf->str + prev_len);
+    g_string_append_c(log->buf, '\n');
+}
 
 static
 RadioConfig*
@@ -292,8 +349,14 @@ test_common_init(
     RADIO_CONFIG_INTERFACE version)
 {
     RADIO_CONFIG_INTERFACE v;
+    GLogModule* log = &test->log.module;
 
     memset(test, 0, sizeof(*test));
+    test->log.buf = g_string_new(NULL);
+    log->name = "test";
+    *((int*)&log->max_level) = GLOG_LEVEL_VERBOSE;
+    log->level = GLOG_LEVEL_VERBOSE;
+    log->log_proc = test_log_fn;
     test->sm = gbinder_servicemanager_new(DEV);
     test_config_service_init(&test->service);
     for (v = RADIO_CONFIG_INTERFACE_1_0; v <= version; v++) {
@@ -301,6 +364,10 @@ test_common_init(
             radio_config_fqnames[v], test->service.obj);
     }
     test->client = radio_config_new();
+    test->trace = radio_logger_new_config_trace(test->client,
+        &test->log.module, GLOG_LEVEL_ALWAYS, NULL);
+    test->dump = radio_logger_new_config_dump(test->client,
+        &test->log.module, GLOG_LEVEL_ALWAYS, NULL);
     g_assert(test->client);
     return test->client;
 }
@@ -318,6 +385,9 @@ test_common_cleanup(
         gbinder_remote_object_unref(test->remote[i]);
     }
     gbinder_servicemanager_unref(test->sm);
+    radio_logger_free(test->trace);
+    radio_logger_free(test->dump);
+    g_string_free(test->log.buf, TRUE);
 }
 
 /*==========================================================================*
@@ -401,6 +471,10 @@ test_null(
     radio_config_unref(NULL);
     radio_config_remove_handler(NULL, 0);
     radio_config_remove_handlers(NULL, NULL, 0);
+
+    g_assert_null(radio_logger_new_config_trace(NULL, NULL, 0, NULL));
+    g_assert_null(radio_logger_new_config_dump(NULL, NULL, 0, NULL));
+    radio_logger_free(NULL);
 }
 
 /*==========================================================================*
@@ -622,6 +696,16 @@ test_ind(
     /* And wait for test_ind_cb2 to terminate the loop */
     test_run(&test_opt, test.loop);
     g_assert_cmpint(test.n, == ,4);
+    test_match_prefix(test.common.log.buf->str, "> 1 simSlotsStatusChanged\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 2e 63  6f 6e 66 69 67 40 31 2e    .radio.c onfig@1.\n"
+"  0020: 30 3a 3a 49 52 61 64 69  6f 43 6f 6e 66 69 67 49    0::IRadi oConfigI\n"
+"  0030: 6e 64 69 63 61 74 69 6f  6e 01 00 00 00             ndicatio n....\n"
+"> 1 simSlotsStatusChanged\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 2e 63  6f 6e 66 69 67 40 31 2e    .radio.c onfig@1.\n"
+"  0020: 30 3a 3a 49 52 61 64 69  6f 43 6f 6e 66 69 67 49    0::IRadi oConfigI\n"
+"  0030: 6e 64 69 63 61 74 69 6f  6e 00 00 00 00             ndicatio n....\n");
 
     /* Cleanup */
     radio_config_remove_all_handlers(client, id);
@@ -751,6 +835,19 @@ test_resp(
     g_assert(test.destroyed);
     g_assert_cmpint(observed_req,==,RADIO_CONFIG_REQ_SET_PREFERRED_DATA_MODEM);
     g_assert_cmpint(observed_resp,==,RADIO_CONFIG_RESP_SET_PREFERRED_DATA_MODEM);
+    test_match_prefix(test.common.log.buf->str, "< [" WILDCARD_XCHAR8
+"] 5 setPreferredDataModem\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 2e 63  6f 6e 66 69 67 40 31 2e    .radio.c onfig@1.\n"
+"  0020: 31 3a 3a 49 52 61 64 69  6f 43 6f 6e 66 69 67 " WILDCARD_XCHAR2
+"    1::IRadi oConfig" WILDCARD_CHAR_S "\n  0030: "
+WILDCARD_XCHAR2 " " WILDCARD_XCHAR2 " " WILDCARD_XCHAR2
+"                                            " WILDCARD_CHAR3 "\n"
+"> [" WILDCARD_XCHAR8 "] 4 setPreferredDataModemResponse\n"
+"  0000: 61 6e 64 72 6f 69 64 2e  68 61 72 64 77 61 72 65    android. hardware\n"
+"  0010: 2e 72 61 64 69 6f 2e 63  6f 6e 66 69 67 40 31 2e    .radio.c onfig@1.\n"
+"  0020: 31 3a 3a 49 52 61 64 69  6f 43 6f 6e 66 69 67 52    1::IRadi oConfigR\n"
+"  0030: 65 73 70 6f 6e 73 65 ");
 
     /* Cleanup */
     radio_config_remove_all_handlers(client, id);
