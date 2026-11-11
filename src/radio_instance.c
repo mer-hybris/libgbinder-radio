@@ -274,6 +274,14 @@ typedef struct radio_instance_tx {
  *==========================================================================*/
 
 static
+void
+radio_instance_servicemanager_unref(
+    gpointer sm)
+{
+    gbinder_servicemanager_unref(sm);
+}
+
+static
 GQuark
 radio_instance_req_quark(
     RadioInstance* self,
@@ -641,7 +649,7 @@ radio_instance_create_desc(
      * have another slot to initialize.
      */
     gutil_idle_pool_add(priv->idle, gbinder_servicemanager_ref(sm),
-        (GDestroyNotify) gbinder_servicemanager_unref);
+        radio_instance_servicemanager_unref);
     return self;
 }
 
