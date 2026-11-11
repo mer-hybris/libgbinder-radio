@@ -1498,6 +1498,112 @@ test_block_timeout(
 }
 
 /*==========================================================================*
+ * block_queued_timeout
+ *
+ * A request that can't be submitted because another group owns the
+ * client must still time out, even if nothing else is active.
+ *==========================================================================*/
+
+static
+void
+test_block_queued_timeout_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_TIMEOUT);
+    g_assert(!test->completed);
+    test->completed++;
+    GDEBUG("queued request timed out");
+    test_quit_later(test->loop);
+}
+
+static
+void
+test_block_queued_timeout(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_queued_timeout_complete_cb, NULL, &test);
+
+    test_common_connected(&test.common);
+
+    /* The group owns the client, with nothing pending */
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    radio_request_set_timeout(req, 100);
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    test_run(&test_opt, test.loop);
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_FAILED);
+    g_assert_cmpint(test_service_req_count(&test.common.service,
+        RADIO_REQ_GET_MUTE), == ,0);
+    radio_request_unref(req);
+
+    /* Cleanup */
+    radio_request_group_unblock(group);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_queued_timeout2
+ *
+ * Same as block_queued_timeout, but with a pending request in the group
+ * which owns the client. The queued request has a shorter timeout and has
+ * to expire on time, not when the pending one does.
+ *==========================================================================*/
+
+static
+void
+test_block_queued_timeout2(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req1 = radio_request_new2(group, IGNORE_REQ, NULL,
+        NULL, NULL, NULL);
+    RadioRequest* req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_queued_timeout_complete_cb, NULL, &test);
+
+    test_common_connected(&test.common);
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    /* This one is never answered and outlives the test timeout */
+    radio_request_set_timeout(req1, TEST_TIMEOUT_MS * 2);
+    g_assert(radio_request_submit(req1));
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+
+    radio_request_set_timeout(req2, 100);
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    test_run(&test_opt, test.loop);
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_drop(req1);
+    radio_request_unref(req2);
+
+    /* Cleanup */
+    radio_request_group_unblock(group);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
  * block_retry
  *==========================================================================*/
 
@@ -2232,6 +2338,10 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("block/2"), test_block2);
     g_test_add_func(TEST_("block/timeout"), test_block_timeout);
     g_test_add_func(TEST_("block/retry"), test_block_retry);
+    g_test_add_func(TEST_("block/queued_timeout"),
+        test_block_queued_timeout);
+    g_test_add_func(TEST_("block/queued_timeout2"),
+        test_block_queued_timeout2);
     g_test_add_func(TEST_("retry/1"), test_retry1);
     g_test_add_func(TEST_("retry/2"), test_retry2);
     g_test_add_func(TEST_("retry/3"), test_retry3);

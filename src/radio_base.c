@@ -594,9 +594,16 @@ radio_base_submit_request(
 
         /* Don't complete the request if it fails right away */
         req->complete = NULL;
-        if (radio_base_submit_queued_requests(self)) {
-            radio_base_reset_timeout(self);
-        }
+        radio_base_submit_queued_requests(self);
+
+        /*
+         * The timer has to be updated even if nothing has been submitted.
+         * The new request may have to wait in the queue (e.g. because
+         * another group owns the client) and its deadline may be earlier
+         * than the one the timer is set for, if the timer is running at
+         * all.
+         */
+        radio_base_reset_timeout(self);
         if (req->state < RADIO_REQUEST_STATE_FAILED) {
             req->complete = complete;
             return TRUE;
