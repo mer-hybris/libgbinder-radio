@@ -468,11 +468,14 @@ radio_config_indication(
             const guint* signals = radio_config_signals +
                 SIGNAL_OBSERVE_INDICATION_0;
 
+            /* Observers may drop the last reference */
+            radio_config_ref(self);
             for (i = RADIO_OBSERVER_PRIORITY_COUNT - 1; i >=0; i--) {
                 if (signals[i]) {
                     g_signal_emit(self, signals[i], quark, code, &args);
                 }
             }
+            radio_config_unref(self);
             *status = GBINDER_STATUS_OK;
         } else {
             GWARN("Failed to decode IRadioConfig indication %u", code);

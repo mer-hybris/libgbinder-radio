@@ -378,6 +378,9 @@ radio_instance_indication(
             int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
             gboolean handled = FALSE;
 
+            /* Handlers may drop the last reference to the instance */
+            radio_instance_ref(self);
+
             /* High-priority observers are notified first */
             for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
                 if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
@@ -419,6 +422,7 @@ radio_instance_indication(
                 GDEBUG("ack unhandled indication");
                 radio_instance_ack(self);
             }
+            radio_instance_unref(self);
             *status = GBINDER_STATUS_OK;
         } else {
             GWARN("Failed to decode indication %u", code);
@@ -478,6 +482,9 @@ radio_instance_response(
         int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
         gboolean handled = FALSE;
 
+        /* Handlers may drop the last reference to the instance */
+        radio_instance_ref(self);
+
         /* High-priority observers are notified first */
         for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
             if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
@@ -506,6 +513,7 @@ radio_instance_response(
             GDEBUG("ack unhandled response");
             radio_instance_ack(self);
         }
+        radio_instance_unref(self);
     }
     *status = GBINDER_STATUS_OK;
     return NULL;
