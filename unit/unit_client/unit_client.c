@@ -1873,6 +1873,49 @@ test_block_fail_queue(
 }
 
 /*==========================================================================*
+ * block_cancel
+ *
+ * A group waiting to become the owner gives up. The requests that had
+ * to wait for it are submitted right away.
+ *==========================================================================*/
+
+static
+void
+test_block_cancel(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req1 = radio_request_new(client, IGNORE_REQ, NULL,
+        NULL, NULL, NULL);
+    RadioRequest* req2 = radio_request_new(client, IGNORE_REQ, NULL,
+        NULL, NULL, NULL);
+
+    test_common_connected(&test.common);
+    g_assert(radio_request_submit(req1));
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_QUEUED);
+
+    /* Has to wait for the group */
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    /* Not anymore */
+    radio_request_group_unblock(group);
+    g_assert_cmpint(radio_request_group_block_status(group), ==,
+        RADIO_BLOCK_NONE);
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+
+    /* Cleanup */
+    radio_request_drop(req1);
+    radio_request_drop(req2);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
  * block_retry
  *==========================================================================*/
 
@@ -2607,6 +2650,7 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("block/2"), test_block2);
     g_test_add_func(TEST_("block/timeout"), test_block_timeout);
     g_test_add_func(TEST_("block/retry"), test_block_retry);
+    g_test_add_func(TEST_("block/cancel"), test_block_cancel);
     g_test_add_data_func(TEST_("block/fail_queue/1"),
         GINT_TO_POINTER(1), test_block_fail_queue);
     g_test_add_data_func(TEST_("block/fail_queue/2"),

@@ -811,8 +811,13 @@ radio_base_unblock(
         if (radio_base_submit_queued_requests(self) || !priv->owner) {
             radio_base_reset_timeout(self);
         }
-    } else {
+    } else if (g_slist_find(priv->owner_queue, group)) {
+        /*
+         * The requests that couldn't be submitted because this group
+         * was waiting to become the owner may be submittable now.
+         */
         priv->owner_queue = g_slist_remove(priv->owner_queue, group);
+        radio_base_submit_requests(self);
     }
 }
 
