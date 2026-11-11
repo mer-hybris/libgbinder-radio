@@ -1262,6 +1262,62 @@ test_death(
 }
 
 /*==========================================================================*
+ * death_restart
+ *
+ * The service dies and comes back, a new instance is created for it
+ * while the dead one is still referenced. Releasing the dead one must
+ * not unregister the new one.
+ *==========================================================================*/
+
+static
+void
+test_death_restart(
+    void)
+{
+    const char* slot = "slot1";
+    const char* fqname = RADIO_1_0 "/slot1";
+    TestRadioService service, service2;
+    GBinderServiceManager* sm = gbinder_servicemanager_new(DEV);
+    GBinderRemoteObject* remote;
+    GBinderRemoteObject* remote2;
+    RadioInstance* dead;
+    RadioInstance* radio;
+
+    test_service_init(&service);
+    remote = test_gbinder_servicemanager_new_service(sm, fqname, service.obj);
+    dead = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+    g_assert(dead);
+    test_gbinder_remote_object_kill(remote);
+    g_assert(radio_instance_is_dead(dead));
+    g_assert(!radio_instance_get_with_version(DEV, slot, RADIO_INTERFACE_1_4));
+
+    /* The service is back */
+    test_service_init(&service2);
+    remote2 = test_gbinder_servicemanager_new_service(sm, fqname,
+        service2.obj);
+    radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+    g_assert(radio);
+    g_assert(radio != dead);
+    g_assert(radio_instance_get_with_version(DEV, slot,
+        RADIO_INTERFACE_1_4) == radio);
+
+    /* The dead one goes away, the new one stays registered */
+    radio_instance_unref(dead);
+    g_assert(radio_instance_get_with_version(DEV, slot,
+        RADIO_INTERFACE_1_4) == radio);
+    g_assert(radio_instance_get_all());
+
+    radio_instance_unref(radio);
+    g_assert(!radio_instance_get_with_version(DEV, slot,
+        RADIO_INTERFACE_1_4));
+    test_service_cleanup(&service2);
+    test_service_cleanup(&service);
+    gbinder_remote_object_unref(remote2);
+    gbinder_remote_object_unref(remote);
+    gbinder_servicemanager_unref(sm);
+}
+
+/*==========================================================================*
  * Common
  *==========================================================================*/
 
@@ -1282,6 +1338,7 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("send_req"), test_send_req);
     g_test_add_func(TEST_("enabled"), test_enabled);
     g_test_add_func(TEST_("death"), test_death);
+    g_test_add_func(TEST_("death_restart"), test_death_restart);
     test_init(&test_opt, argc, argv);
     return g_test_run();
 }
