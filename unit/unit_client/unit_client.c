@@ -1604,6 +1604,94 @@ test_block_queued_timeout2(
 }
 
 /*==========================================================================*
+ * block_retry_resp
+ *
+ * A pending request is retried but can't be resubmitted right away
+ * because a group is waiting to become the owner. Then the response
+ * to the original transmission arrives.
+ *==========================================================================*/
+
+static
+void
+test_block_retry_resp_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert(!test->completed);
+    test->completed++;
+}
+
+static
+void
+test_block_retry_resp(
+    void)
+{
+    GBinderLocalRequest* resp;
+    GBinderWriter writer;
+    RadioResponseInfo info;
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    GBinderClient* resp_client;
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req = radio_request_new(client, IGNORE_REQ, NULL,
+        test_block_retry_resp_complete_cb, test_simple_destroy_cb, &test);
+    RadioRequest* req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        NULL, NULL, NULL);
+    guint32 serial;
+
+    test_common_connected(&test.common);
+    resp_client = test.common.service.resp_client;
+
+    radio_request_set_retry(req, 0, 1);
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
+    serial = req->serial2;
+
+    /* The group has to wait for the pending request */
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_QUEUED);
+
+    /* Retry can't resubmit it, so it gets queued */
+    radio_request_retry(req);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    radio_request_unref(req);
+
+    /* The response to the original transmission */
+    memset(&info, 0, sizeof(info));
+    info.type = RADIO_RESP_SOLICITED;
+    info.serial = serial;
+    resp = gbinder_client_new_request2(resp_client,
+        RADIO_RESP_GET_SIGNAL_STRENGTH);
+    gbinder_local_request_init_writer(resp, &writer);
+    gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
+    g_assert_cmpint(gbinder_client_transact_sync_oneway(resp_client,
+        RADIO_RESP_GET_SIGNAL_STRENGTH, resp), == ,GBINDER_STATUS_OK);
+    gbinder_local_request_unref(resp);
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(test.destroyed, == ,1);
+    test_run(&test_opt, test.loop); /* test_simple_destroy_cb quits it */
+
+    /* The queue must still be usable */
+    g_assert_cmpint(radio_request_group_block_status(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+    radio_request_group_unblock(group);
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_drop(req2);
+
+    /* Cleanup */
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
  * block_retry
  *==========================================================================*/
 
@@ -2338,6 +2426,7 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("block/2"), test_block2);
     g_test_add_func(TEST_("block/timeout"), test_block_timeout);
     g_test_add_func(TEST_("block/retry"), test_block_retry);
+    g_test_add_func(TEST_("block/retry_resp"), test_block_retry_resp);
     g_test_add_func(TEST_("block/queued_timeout"),
         test_block_queued_timeout);
     g_test_add_func(TEST_("block/queued_timeout2"),

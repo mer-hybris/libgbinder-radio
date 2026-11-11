@@ -805,6 +805,18 @@ radio_base_handle_resp(
         /* It's no longer pending */
         g_hash_table_remove(priv->pending, KEY(info->serial));
 
+        /*
+         * The request may be back in the queue, waiting to be resubmitted
+         * after radio_request_retry(), and this is the response to the
+         * previous transmission. Take it out of the queue, both outcomes
+         * below assume that it's not there (re-queueing would loop the
+         * queue, and a completed request would be left in it after it's
+         * been freed).
+         */
+        if (req->state == RADIO_REQUEST_STATE_QUEUED) {
+            radio_base_dequeue_request(priv, req);
+        }
+
         /* Response may come before completion of the request */
         radio_base_cancel_request(self, req);
 
