@@ -144,8 +144,13 @@ radio_client_handle_connected(
     RadioInstance* instance,
     gpointer user_data)
 {
-    g_signal_emit(THIS(user_data), radio_client_signals[SIGNAL_CONNECTED], 0);
-    radio_base_submit_requests(RADIO_BASE(user_data));
+    RadioBase* base = RADIO_BASE(user_data);
+
+    /* Connected handlers may drop the last reference to the client */
+    g_object_ref(base);
+    g_signal_emit(base, radio_client_signals[SIGNAL_CONNECTED], 0);
+    radio_base_submit_requests(base);
+    g_object_unref(base);
 }
 
 static

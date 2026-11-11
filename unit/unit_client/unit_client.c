@@ -862,6 +862,48 @@ test_resp(
 }
 
 /*==========================================================================*
+ * connected_unref
+ *
+ * The connected handler drops the last reference to the client.
+ *==========================================================================*/
+
+static
+void
+test_connected_unref_cb(
+    RadioClient* client,
+    gpointer user_data)
+{
+    RadioClient** ptr = user_data;
+
+    g_assert(*ptr == client);
+    *ptr = NULL;
+    radio_client_unref(client);
+}
+
+static
+void
+test_connected_unref(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    GBinderClient* ind_client = test.common.service.ind_client;
+    GBinderLocalRequest* req;
+
+    g_assert(radio_client_add_connected_handler(client,
+        test_connected_unref_cb, &test.common.client));
+    req = gbinder_client_new_request2(ind_client, RADIO_IND_RIL_CONNECTED);
+    gbinder_local_request_append_int32(req, RADIO_IND_ACK_EXP);
+    g_assert_cmpint(gbinder_client_transact_sync_oneway(ind_client,
+        RADIO_IND_RIL_CONNECTED, req), == ,GBINDER_STATUS_OK);
+    gbinder_local_request_unref(req);
+    g_assert(!test.common.client); /* Released by the handler */
+
+    /* Cleanup (radio_client_unref(NULL) is fine) */
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
  * group
  *==========================================================================*/
 
@@ -2225,6 +2267,7 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("cancel_queue"), test_cancel_queue);
     g_test_add_func(TEST_("ind"), test_ind);
     g_test_add_func(TEST_("resp"), test_resp);
+    g_test_add_func(TEST_("connected_unref"), test_connected_unref);
     g_test_add_func(TEST_("group"), test_group);
     g_test_add_func(TEST_("group2"), test_group2);
     g_test_add_func(TEST_("group3"), test_group3);
