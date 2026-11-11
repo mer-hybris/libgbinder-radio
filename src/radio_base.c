@@ -425,6 +425,16 @@ radio_base_submit_queued_requests(
     RadioBasePriv* priv = self->priv;
     guint submitted = 0;
 
+    /*
+     * The group waiting to become the owner may have been waiting for
+     * a request that's no longer pending without having completed (it
+     * has been retried, dropped or has timed out). Otherwise it would
+     * keep waiting until one of its own requests gets submitted, and
+     * the requests outside of the group would stay in the queue behind
+     * it, possibly forever.
+     */
+    radio_base_move_owner_queue(self);
+
     if (RADIO_BASE_GET_CLASS(self)->can_submit_requests(self)) {
         RadioRequest* prev = NULL;
         RadioRequest* req = priv->queue_first;
