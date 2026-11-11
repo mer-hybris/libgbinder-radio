@@ -343,7 +343,7 @@ radio_base_can_set_owner(
 }
 
 static
-void
+gboolean
 radio_base_move_owner_queue(
     RadioBase* self)
 {
@@ -359,8 +359,10 @@ radio_base_move_owner_queue(
             priv->owner_queue = l->next;
             g_slist_free_1(l);
             g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
+            return TRUE;
         }
     }
+    return FALSE;
 }
 
 static
@@ -451,7 +453,9 @@ radio_base_submit_queued_requests(
 
                 /* Initiate the transaction and update the request state */
                 if (radio_base_submit_transaction(self, req)) {
-                    radio_base_move_owner_queue(self);
+                    const gboolean owner_changed =
+                        radio_base_move_owner_queue(self);
+
                     submitted++;
                     if (req->blocking) {
                         if (!priv->block_req) {
@@ -460,8 +464,24 @@ radio_base_submit_queued_requests(
                         }
                         break;
                     }
+                    if (owner_changed) {
+                        /*
+                         * The owner change handlers may have submitted,
+                         * dropped or released any request, including
+                         * the next one. Start over.
+                         */
+                        prev = NULL;
+                        next = priv->queue_first;
+                    }
                 } else {
+                    /*
+                     * The completion callback may do anything to the
+                     * queue, and failing the request pushes the queue
+                     * itself. Start over.
+                     */
                     radio_base_request_failed(self, req);
+                    prev = NULL;
+                    next = priv->queue_first;
                 }
             } else {
                 /* What hasn't been removed from the queue, becomes prev */

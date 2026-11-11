@@ -1799,6 +1799,80 @@ test_block_retry_resp2(
 }
 
 /*==========================================================================*
+ * block_fail_queue
+ *
+ * The first of the requests released from the queue can't be sent.
+ * Failing it pushes the queue from inside the loop that is pushing it.
+ *==========================================================================*/
+
+static
+void
+test_block_fail_queue_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    int* count = user_data;
+
+    (*count)++;
+}
+
+static
+void
+test_block_fail_queue(
+    gconstpointer data)
+{
+    const int fail = GPOINTER_TO_INT(data);
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req[3];
+    int completed = 0;
+    int i;
+
+    test_common_connected(&test.common);
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    /* Three requests outside of the group, waiting in the queue */
+    for (i = 0; i < 3; i++) {
+        req[i] = radio_request_new(client, IGNORE_REQ, NULL,
+            test_block_fail_queue_complete_cb, NULL, &completed);
+        g_assert(radio_request_submit(req[i]));
+        g_assert_cmpint(req[i]->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    }
+
+    /* Keep a reference only to the last one */
+    radio_request_unref(req[0]);
+    radio_request_unref(req[1]);
+
+    /* Release the queue, the first (or the first two) can't be sent */
+    test_gbinder_client_tx_fail_count = fail;
+    radio_request_group_unblock(group);
+    test_gbinder_client_tx_fail_count = 0;
+
+    /* Let the transactions reach the service */
+    test_quit_later(test.loop);
+    test_run(&test_opt, test.loop);
+
+    /* Each request has been sent at most once */
+    g_assert_cmpint(test_service_req_count(&test.common.service,
+        IGNORE_REQ), == ,3 - fail);
+    g_assert_cmpint(completed, == ,fail);
+
+    /* The last one has been sent (once) */
+    g_assert_cmpint(req[2]->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_drop(req[2]);
+
+    /* Cleanup */
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
  * block_retry
  *==========================================================================*/
 
@@ -2533,6 +2607,10 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("block/2"), test_block2);
     g_test_add_func(TEST_("block/timeout"), test_block_timeout);
     g_test_add_func(TEST_("block/retry"), test_block_retry);
+    g_test_add_data_func(TEST_("block/fail_queue/1"),
+        GINT_TO_POINTER(1), test_block_fail_queue);
+    g_test_add_data_func(TEST_("block/fail_queue/2"),
+        GINT_TO_POINTER(2), test_block_fail_queue);
     g_test_add_func(TEST_("block/retry_resp"), test_block_retry_resp);
     g_test_add_func(TEST_("block/retry_resp2"), test_block_retry_resp2);
     g_test_add_func(TEST_("block/queued_timeout"),
