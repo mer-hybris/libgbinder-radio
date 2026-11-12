@@ -343,7 +343,7 @@ radio_base_can_set_owner(
 }
 
 static
-void
+gboolean
 radio_base_move_owner_queue(
     RadioBase* self)
 {
@@ -359,8 +359,10 @@ radio_base_move_owner_queue(
             priv->owner_queue = l->next;
             g_slist_free_1(l);
             g_signal_emit(self, radio_base_signals[SIGNAL_OWNER], 0);
+            return TRUE;
         }
     }
+    return FALSE;
 }
 
 static
@@ -425,6 +427,16 @@ radio_base_submit_queued_requests(
     RadioBasePriv* priv = self->priv;
     guint submitted = 0;
 
+    /*
+     * The group waiting to become the owner may have been waiting for
+     * a request that's no longer pending without having completed (it
+     * has been retried, dropped or has timed out). Otherwise it would
+     * keep waiting until one of its own requests gets submitted, and
+     * the requests outside of the group would stay in the queue behind
+     * it, possibly forever.
+     */
+    radio_base_move_owner_queue(self);
+
     if (RADIO_BASE_GET_CLASS(self)->can_submit_requests(self)) {
         RadioRequest* prev = NULL;
         RadioRequest* req = priv->queue_first;
@@ -441,7 +453,9 @@ radio_base_submit_queued_requests(
 
                 /* Initiate the transaction and update the request state */
                 if (radio_base_submit_transaction(self, req)) {
-                    radio_base_move_owner_queue(self);
+                    const gboolean owner_changed =
+                        radio_base_move_owner_queue(self);
+
                     submitted++;
                     if (req->blocking) {
                         if (!priv->block_req) {
@@ -450,8 +464,24 @@ radio_base_submit_queued_requests(
                         }
                         break;
                     }
+                    if (owner_changed) {
+                        /*
+                         * The owner change handlers may have submitted,
+                         * dropped or released any request, including
+                         * the next one. Start over.
+                         */
+                        prev = NULL;
+                        next = priv->queue_first;
+                    }
                 } else {
+                    /*
+                     * The completion callback may do anything to the
+                     * queue, and failing the request pushes the queue
+                     * itself. Start over.
+                     */
                     radio_base_request_failed(self, req);
+                    prev = NULL;
+                    next = priv->queue_first;
                 }
             } else {
                 /* What hasn't been removed from the queue, becomes prev */
@@ -594,9 +624,16 @@ radio_base_submit_request(
 
         /* Don't complete the request if it fails right away */
         req->complete = NULL;
-        if (radio_base_submit_queued_requests(self)) {
-            radio_base_reset_timeout(self);
-        }
+        radio_base_submit_queued_requests(self);
+
+        /*
+         * The timer has to be updated even if nothing has been submitted.
+         * The new request may have to wait in the queue (e.g. because
+         * another group owns the client) and its deadline may be earlier
+         * than the one the timer is set for, if the timer is running at
+         * all.
+         */
+        radio_base_reset_timeout(self);
         if (req->state < RADIO_REQUEST_STATE_FAILED) {
             req->complete = complete;
             return TRUE;
@@ -774,8 +811,13 @@ radio_base_unblock(
         if (radio_base_submit_queued_requests(self) || !priv->owner) {
             radio_base_reset_timeout(self);
         }
-    } else {
+    } else if (g_slist_find(priv->owner_queue, group)) {
+        /*
+         * The requests that couldn't be submitted because this group
+         * was waiting to become the owner may be submittable now.
+         */
         priv->owner_queue = g_slist_remove(priv->owner_queue, group);
+        radio_base_submit_requests(self);
     }
 }
 
@@ -797,6 +839,18 @@ radio_base_handle_resp(
 
         /* It's no longer pending */
         g_hash_table_remove(priv->pending, KEY(info->serial));
+
+        /*
+         * The request may be back in the queue, waiting to be resubmitted
+         * after radio_request_retry(), and this is the response to the
+         * previous transmission. Take it out of the queue, both outcomes
+         * below assume that it's not there (re-queueing would loop the
+         * queue, and a completed request would be left in it after it's
+         * been freed).
+         */
+        if (req->state == RADIO_REQUEST_STATE_QUEUED) {
+            radio_base_dequeue_request(priv, req);
+        }
 
         /* Response may come before completion of the request */
         radio_base_cancel_request(self, req);

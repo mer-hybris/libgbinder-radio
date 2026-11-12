@@ -1498,6 +1498,424 @@ test_block_timeout(
 }
 
 /*==========================================================================*
+ * block_queued_timeout
+ *
+ * A request that can't be submitted because another group owns the
+ * client must still time out, even if nothing else is active.
+ *==========================================================================*/
+
+static
+void
+test_block_queued_timeout_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_TIMEOUT);
+    g_assert(!test->completed);
+    test->completed++;
+    GDEBUG("queued request timed out");
+    test_quit_later(test->loop);
+}
+
+static
+void
+test_block_queued_timeout(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_queued_timeout_complete_cb, NULL, &test);
+
+    test_common_connected(&test.common);
+
+    /* The group owns the client, with nothing pending */
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    radio_request_set_timeout(req, 100);
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    test_run(&test_opt, test.loop);
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_FAILED);
+    g_assert_cmpint(test_service_req_count(&test.common.service,
+        RADIO_REQ_GET_MUTE), == ,0);
+    radio_request_unref(req);
+
+    /* Cleanup */
+    radio_request_group_unblock(group);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_queued_timeout2
+ *
+ * Same as block_queued_timeout, but with a pending request in the group
+ * which owns the client. The queued request has a shorter timeout and has
+ * to expire on time, not when the pending one does.
+ *==========================================================================*/
+
+static
+void
+test_block_queued_timeout2(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req1 = radio_request_new2(group, IGNORE_REQ, NULL,
+        NULL, NULL, NULL);
+    RadioRequest* req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_queued_timeout_complete_cb, NULL, &test);
+
+    test_common_connected(&test.common);
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    /* This one is never answered and outlives the test timeout */
+    radio_request_set_timeout(req1, TEST_TIMEOUT_MS * 2);
+    g_assert(radio_request_submit(req1));
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+
+    radio_request_set_timeout(req2, 100);
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    test_run(&test_opt, test.loop);
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_drop(req1);
+    radio_request_unref(req2);
+
+    /* Cleanup */
+    radio_request_group_unblock(group);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_retry_resp
+ *
+ * A pending request is retried but can't be resubmitted right away
+ * because a group is waiting to become the owner. Then the response
+ * to the original transmission arrives.
+ *==========================================================================*/
+
+static
+void
+test_block_retry_resp_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert(!test->completed);
+    test->completed++;
+}
+
+static
+void
+test_block_retry_resp(
+    void)
+{
+    GBinderLocalRequest* resp;
+    GBinderWriter writer;
+    RadioResponseInfo info;
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    GBinderClient* resp_client;
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req = radio_request_new(client, IGNORE_REQ, NULL,
+        test_block_retry_resp_complete_cb, test_simple_destroy_cb, &test);
+    RadioRequest* req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        NULL, NULL, NULL);
+    guint32 serial;
+
+    test_common_connected(&test.common);
+    resp_client = test.common.service.resp_client;
+
+    radio_request_set_retry(req, 0, 1);
+    g_assert(radio_request_submit(req));
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
+    serial = req->serial2;
+
+    /* The group has to wait for the pending request */
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_QUEUED);
+
+    /* Retry can't resubmit it, so it gets queued */
+    radio_request_retry(req);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    radio_request_unref(req);
+
+    /* Nothing is pending anymore, the group becomes the owner */
+    g_assert_cmpint(radio_request_group_block_status(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    /* The response to the original transmission */
+    memset(&info, 0, sizeof(info));
+    info.type = RADIO_RESP_SOLICITED;
+    info.serial = serial;
+    resp = gbinder_client_new_request2(resp_client,
+        RADIO_RESP_GET_SIGNAL_STRENGTH);
+    gbinder_local_request_init_writer(resp, &writer);
+    gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
+    g_assert_cmpint(gbinder_client_transact_sync_oneway(resp_client,
+        RADIO_RESP_GET_SIGNAL_STRENGTH, resp), == ,GBINDER_STATUS_OK);
+    gbinder_local_request_unref(resp);
+    g_assert_cmpint(test.completed, == ,1);
+    g_assert_cmpint(test.destroyed, == ,1);
+    test_run(&test_opt, test.loop); /* test_simple_destroy_cb quits it */
+
+    /* The queue must still be usable */
+    g_assert_cmpint(radio_request_group_block_status(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+    radio_request_group_unblock(group);
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_drop(req2);
+
+    /* Cleanup */
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_retry_resp2
+ *
+ * Same as block_retry_resp but the response asks for yet another retry.
+ * The request must end up in the queue once.
+ *==========================================================================*/
+
+static
+gboolean
+test_block_retry_resp2_retry(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    guint32 resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    void* user_data)
+{
+    int* retried = user_data;
+
+    (*retried)++;
+    return TRUE;
+}
+
+static
+void
+test_block_retry_resp2_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    TestSimple* test = user_data;
+
+    g_assert_cmpint(status, == ,RADIO_TX_STATUS_OK);
+    g_assert_cmpint(resp, == ,RADIO_RESP_GET_MUTE);
+    test->completed++;
+    test_quit_later(test->loop);
+}
+
+static
+void
+test_block_retry_resp2(
+    void)
+{
+    GBinderLocalRequest* resp;
+    GBinderWriter writer;
+    RadioResponseInfo info;
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    GBinderClient* resp_client;
+    RadioRequestGroup* group = radio_request_group_new(client);
+    int retried = 0;
+    RadioRequest* req = radio_request_new(client, IGNORE_REQ, NULL,
+        NULL, NULL, &retried);
+    RadioRequest* req2 = radio_request_new(client, RADIO_REQ_GET_MUTE, NULL,
+        test_block_retry_resp2_complete_cb, NULL, &test);
+    guint32 serial;
+
+    test_common_connected(&test.common);
+    resp_client = test.common.service.resp_client;
+
+    radio_request_set_retry(req, 0, -1);
+    radio_request_set_retry_func(req, test_block_retry_resp2_retry);
+    g_assert(radio_request_submit(req));
+    serial = req->serial2;
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_QUEUED);
+    radio_request_retry(req);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    /* The response to the original transmission */
+    memset(&info, 0, sizeof(info));
+    info.type = RADIO_RESP_SOLICITED;
+    info.serial = serial;
+    resp = gbinder_client_new_request2(resp_client,
+        RADIO_RESP_GET_SIGNAL_STRENGTH);
+    gbinder_local_request_init_writer(resp, &writer);
+    gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
+    g_assert_cmpint(gbinder_client_transact_sync_oneway(resp_client,
+        RADIO_RESP_GET_SIGNAL_STRENGTH, resp), == ,GBINDER_STATUS_OK);
+    gbinder_local_request_unref(resp);
+    g_assert_cmpint(retried, == ,1);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    /* The queue still works (a looped one would hang here) */
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    g_assert_cmpint(radio_request_group_block_status(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+    radio_request_group_unblock(group);
+    test_run(&test_opt, test.loop);
+    g_assert_cmpint(req->state, == ,RADIO_REQUEST_STATE_PENDING);
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_DONE);
+
+    /* Cleanup */
+    radio_request_drop(req);
+    radio_request_unref(req2);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_fail_queue
+ *
+ * The first of the requests released from the queue can't be sent.
+ * Failing it pushes the queue from inside the loop that is pushing it.
+ *==========================================================================*/
+
+static
+void
+test_block_fail_queue_complete_cb(
+    RadioRequest* req,
+    RADIO_TX_STATUS status,
+    RADIO_RESP resp,
+    RADIO_ERROR error,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    int* count = user_data;
+
+    (*count)++;
+}
+
+static
+void
+test_block_fail_queue(
+    gconstpointer data)
+{
+    const int fail = GPOINTER_TO_INT(data);
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req[3];
+    int completed = 0;
+    int i;
+
+    test_common_connected(&test.common);
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_ACQUIRED);
+
+    /* Three requests outside of the group, waiting in the queue */
+    for (i = 0; i < 3; i++) {
+        req[i] = radio_request_new(client, IGNORE_REQ, NULL,
+            test_block_fail_queue_complete_cb, NULL, &completed);
+        g_assert(radio_request_submit(req[i]));
+        g_assert_cmpint(req[i]->state, == ,RADIO_REQUEST_STATE_QUEUED);
+    }
+
+    /* Keep a reference only to the last one */
+    radio_request_unref(req[0]);
+    radio_request_unref(req[1]);
+
+    /* Release the queue, the first (or the first two) can't be sent */
+    test_gbinder_client_tx_fail_count = fail;
+    radio_request_group_unblock(group);
+    test_gbinder_client_tx_fail_count = 0;
+
+    /* Let the transactions reach the service */
+    test_quit_later(test.loop);
+    test_run(&test_opt, test.loop);
+
+    /* Each request has been sent at most once */
+    g_assert_cmpint(test_service_req_count(&test.common.service,
+        IGNORE_REQ), == ,3 - fail);
+    g_assert_cmpint(completed, == ,fail);
+
+    /* The last one has been sent (once) */
+    g_assert_cmpint(req[2]->state, == ,RADIO_REQUEST_STATE_PENDING);
+    radio_request_drop(req[2]);
+
+    /* Cleanup */
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
+ * block_cancel
+ *
+ * A group waiting to become the owner gives up. The requests that had
+ * to wait for it are submitted right away.
+ *==========================================================================*/
+
+static
+void
+test_block_cancel(
+    void)
+{
+    TestSimple test;
+    RadioClient* client = test_simple_init(&test);
+    RadioRequestGroup* group = radio_request_group_new(client);
+    RadioRequest* req1 = radio_request_new(client, IGNORE_REQ, NULL,
+        NULL, NULL, NULL);
+    RadioRequest* req2 = radio_request_new(client, IGNORE_REQ, NULL,
+        NULL, NULL, NULL);
+
+    test_common_connected(&test.common);
+    g_assert(radio_request_submit(req1));
+    g_assert_cmpint(req1->state, == ,RADIO_REQUEST_STATE_PENDING);
+    g_assert_cmpint(radio_request_group_block(group), ==,
+        RADIO_BLOCK_QUEUED);
+
+    /* Has to wait for the group */
+    g_assert(radio_request_submit(req2));
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_QUEUED);
+
+    /* Not anymore */
+    radio_request_group_unblock(group);
+    g_assert_cmpint(radio_request_group_block_status(group), ==,
+        RADIO_BLOCK_NONE);
+    g_assert_cmpint(req2->state, == ,RADIO_REQUEST_STATE_PENDING);
+
+    /* Cleanup */
+    radio_request_drop(req1);
+    radio_request_drop(req2);
+    radio_request_group_unref(group);
+    test_simple_cleanup(&test);
+}
+
+/*==========================================================================*
  * block_retry
  *==========================================================================*/
 
@@ -2232,6 +2650,17 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("block/2"), test_block2);
     g_test_add_func(TEST_("block/timeout"), test_block_timeout);
     g_test_add_func(TEST_("block/retry"), test_block_retry);
+    g_test_add_func(TEST_("block/cancel"), test_block_cancel);
+    g_test_add_data_func(TEST_("block/fail_queue/1"),
+        GINT_TO_POINTER(1), test_block_fail_queue);
+    g_test_add_data_func(TEST_("block/fail_queue/2"),
+        GINT_TO_POINTER(2), test_block_fail_queue);
+    g_test_add_func(TEST_("block/retry_resp"), test_block_retry_resp);
+    g_test_add_func(TEST_("block/retry_resp2"), test_block_retry_resp2);
+    g_test_add_func(TEST_("block/queued_timeout"),
+        test_block_queued_timeout);
+    g_test_add_func(TEST_("block/queued_timeout2"),
+        test_block_queued_timeout2);
     g_test_add_func(TEST_("retry/1"), test_retry1);
     g_test_add_func(TEST_("retry/2"), test_retry2);
     g_test_add_func(TEST_("retry/3"), test_retry3);
