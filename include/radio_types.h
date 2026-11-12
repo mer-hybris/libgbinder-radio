@@ -63,6 +63,7 @@ typedef enum radio_interface {
     RADIO_INTERFACE_1_3,
     RADIO_INTERFACE_1_4,
     RADIO_INTERFACE_1_5, /* Since 1.5.0 */
+    RADIO_INTERFACE_1_6, /* Since 1.6.8 */
     RADIO_INTERFACE_COUNT
 } RADIO_INTERFACE; /* Since 1.2.0 */
 
@@ -100,24 +101,28 @@ typedef enum radio_observer_priority {
 #define RADIO_IFACE_1_3(x)     RADIO_IFACE_PREFIX "1.3::" x
 #define RADIO_IFACE_1_4(x)     RADIO_IFACE_PREFIX "1.4::" x
 #define RADIO_IFACE_1_5(x)     RADIO_IFACE_PREFIX "1.5::" x
+#define RADIO_IFACE_1_6(x)     RADIO_IFACE_PREFIX "1.6::" x
 #define RADIO_1_0              RADIO_IFACE_1_0(RADIO_IFACE)
 #define RADIO_1_1              RADIO_IFACE_1_1(RADIO_IFACE)
 #define RADIO_1_2              RADIO_IFACE_1_2(RADIO_IFACE)
 #define RADIO_1_3              RADIO_IFACE_1_3(RADIO_IFACE)
 #define RADIO_1_4              RADIO_IFACE_1_4(RADIO_IFACE)
 #define RADIO_1_5              RADIO_IFACE_1_5(RADIO_IFACE)
+#define RADIO_1_6              RADIO_IFACE_1_6(RADIO_IFACE)
 #define RADIO_RESPONSE_1_0     RADIO_IFACE_1_0(RADIO_RESPONSE_IFACE)
 #define RADIO_RESPONSE_1_1     RADIO_IFACE_1_1(RADIO_RESPONSE_IFACE)
 #define RADIO_RESPONSE_1_2     RADIO_IFACE_1_2(RADIO_RESPONSE_IFACE)
 #define RADIO_RESPONSE_1_3     RADIO_IFACE_1_3(RADIO_RESPONSE_IFACE)
 #define RADIO_RESPONSE_1_4     RADIO_IFACE_1_4(RADIO_RESPONSE_IFACE)
 #define RADIO_RESPONSE_1_5     RADIO_IFACE_1_5(RADIO_RESPONSE_IFACE)
+#define RADIO_RESPONSE_1_6     RADIO_IFACE_1_6(RADIO_RESPONSE_IFACE)
 #define RADIO_INDICATION_1_0   RADIO_IFACE_1_0(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_1   RADIO_IFACE_1_1(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_2   RADIO_IFACE_1_2(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_3   RADIO_IFACE_1_3(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_4   RADIO_IFACE_1_4(RADIO_INDICATION_IFACE)
 #define RADIO_INDICATION_1_5   RADIO_IFACE_1_5(RADIO_INDICATION_IFACE)
+#define RADIO_INDICATION_1_6   RADIO_IFACE_1_6(RADIO_INDICATION_IFACE)
 
 /* Types defined in types.hal */
 
@@ -1562,6 +1567,35 @@ typedef struct radio_data_call_1_5 {
 } RADIO_ALIGNED(8) RadioDataCall_1_5; /* Since 1.5.0 */
 G_STATIC_ASSERT(sizeof(RadioDataCall_1_5) == 112);
 
+/* safe_union types with only a noinit value are passed as zeroed blobs */
+#define RADIO_QOS_SIZE (28)                    /* Qos */
+#define RADIO_OPTIONAL_SLICE_INFO_SIZE (24)    /* OptionalSliceInfo */
+#define RADIO_OPTIONAL_TRAFFIC_DESCRIPTOR_SIZE (56)
+
+typedef struct radio_data_call_1_6 {
+    RADIO_DATA_CALL_FAIL_CAUSE cause RADIO_ALIGNED(4);
+    gint64 suggestedRetryTime RADIO_ALIGNED(8);
+    gint32 cid RADIO_ALIGNED(4);
+    RADIO_DATA_CALL_ACTIVE_STATUS active RADIO_ALIGNED(4);
+    RADIO_PDP_PROTOCOL_TYPE type RADIO_ALIGNED(4);
+    GBinderHidlString ifname RADIO_ALIGNED(8);
+    GBinderHidlVec addresses RADIO_ALIGNED(8); /* vec<RadioLinkAddress> */
+    GBinderHidlVec dnses RADIO_ALIGNED(8);     /* vec<GBinderHidlString> */
+    GBinderHidlVec gateways RADIO_ALIGNED(8);  /* vec<GBinderHidlString> */
+    GBinderHidlVec pcscf RADIO_ALIGNED(8);     /* vec<GBinderHidlString> */
+    gint32 mtuV4 RADIO_ALIGNED(4);
+    gint32 mtuV6 RADIO_ALIGNED(4);
+    guint8 defaultQos[RADIO_QOS_SIZE] RADIO_ALIGNED(4);
+    GBinderHidlVec qosSessions RADIO_ALIGNED(8);
+    gint8 handoverFailureMode RADIO_ALIGNED(1);
+    gint32 pduSessionId RADIO_ALIGNED(4);
+    guint8 sliceInfo[RADIO_OPTIONAL_SLICE_INFO_SIZE] RADIO_ALIGNED(4);
+    GBinderHidlVec trafficDescriptors RADIO_ALIGNED(8);
+} RADIO_ALIGNED(8) RadioDataCall_1_6; /* Since 1.6.8 */
+G_STATIC_ASSERT(sizeof(RadioDataCall_1_6) == 216);
+G_STATIC_ASSERT(G_STRUCT_OFFSET(RadioDataCall_1_6, qosSessions) == 152);
+G_STATIC_ASSERT(G_STRUCT_OFFSET(RadioDataCall_1_6, sliceInfo) == 176);
+
 typedef struct radio_sms_write_args {
     gint32 status RADIO_ALIGNED(4);
     GBinderHidlString pdu RADIO_ALIGNED(8);
@@ -2517,6 +2551,39 @@ G_STATIC_ASSERT(sizeof(RadioNetworkScanRequest_1_5) == 56);
     c(171,176,sendCdmaSmsExpectMore,SEND_CDMA_SMS_EXPECT_MORE,) \
     c(172,177,supplySimDepersonalization,SUPPLY_SIM_PERSONALIZATION,)
 
+/*
+ * emergencyDial_1_6 (190) and setCarrierInfoForImsiEncryption_1_6 (198)
+ * reuse older responses and are declared separately.
+ */
+#define RADIO_CALL_1_6_(c) /* Since 1.6.8 */ \
+    c(173,179,setRadioPower,SET_RADIO_POWER,_1_6) \
+    c(174,181,getDataCallList,GET_DATA_CALL_LIST,_1_6) \
+    c(175,180,setupDataCall,SETUP_DATA_CALL,_1_6) \
+    c(176,182,sendSms,SEND_SMS,_1_6) \
+    c(177,183,sendSmsExpectMore,SEND_SMS_EXPECT_MORE,_1_6) \
+    c(178,184,sendCdmaSms,SEND_CDMA_SMS,_1_6) \
+    c(179,185,sendCdmaSmsExpectMore,SEND_CDMA_SMS_EXPECT_MORE,_1_6) \
+    c(180,186,setSimCardPower,SET_SIM_CARD_POWER,_1_6) \
+    c(181,187,setNrDualConnectivityState,SET_NR_DUAL_CONNECTIVITY_STATE,) \
+    c(182,188,isNrDualConnectivityEnabled,IS_NR_DUAL_CONNECTIVITY_ENABLED,) \
+    c(183,189,allocatePduSessionId,ALLOCATE_PDU_SESSION_ID,) \
+    c(184,190,releasePduSessionId,RELEASE_PDU_SESSION_ID,) \
+    c(185,191,startHandover,START_HANDOVER,) \
+    c(186,192,cancelHandover,CANCEL_HANDOVER,) \
+    c(187,193,setAllowedNetworkTypesBitmap,SET_ALLOWED_NETWORK_TYPES_BITMAP,) \
+    c(188,194,getAllowedNetworkTypesBitmap,GET_ALLOWED_NETWORK_TYPES_BITMAP,) \
+    c(189,195,setDataThrottling,SET_DATA_THROTTLING,) \
+    c(191,196,getSystemSelectionChannels,GET_SYSTEM_SELECTION_CHANNELS,) \
+    c(192,197,getCellInfoList,GET_CELL_INFO_LIST,_1_6) \
+    c(193,199,getVoiceRegistrationState,GET_VOICE_REGISTRATION_STATE,_1_6) \
+    c(194,198,getSignalStrength,GET_SIGNAL_STRENGTH,_1_6) \
+    c(195,200,getDataRegistrationState,GET_DATA_REGISTRATION_STATE,_1_6) \
+    c(196,201,getCurrentCalls,GET_CURRENT_CALLS,_1_6) \
+    c(197,202,getSlicingConfig,GET_SLICING_CONFIG,) \
+    c(199,203,getSimPhonebookRecords,GET_SIM_PHONEBOOK_RECORDS,) \
+    c(200,204,getSimPhonebookCapacity,GET_SIM_PHONEBOOK_CAPACITY,) \
+    c(201,205,updateSimPhonebookRecords,UPDATE_SIM_PHONEBOOK_RECORDS,)
+
 /* e(code,eventName,EVENT_NAME) */
 #define RADIO_EVENT_1_0(e) \
     e(1,radioStateChanged,RADIO_STATE_CHANGED) \
@@ -2593,6 +2660,17 @@ G_STATIC_ASSERT(sizeof(RadioNetworkScanRequest_1_5) == 56);
     e(64,networkScanResult_1_5,NETWORK_SCAN_RESULT_1_5) \
     e(65,dataCallListChanged_1_5,DATA_CALL_LIST_CHANGED_1_5)
 
+#define RADIO_EVENT_1_6(e)  /* Since 1.6.8 */ \
+    e(66,dataCallListChanged_1_6,DATA_CALL_LIST_CHANGED_1_6) \
+    e(67,unthrottleApn,UNTHROTTLE_APN) \
+    e(68,currentLinkCapacityEstimate_1_6,CURRENT_LINK_CAPACITY_ESTIMATE_1_6) \
+    e(69,currentSignalStrength_1_6,CURRENT_SIGNAL_STRENGTH_1_6) \
+    e(70,cellInfoList_1_6,CELL_INFO_LIST_1_6) \
+    e(71,networkScanResult_1_6,NETWORK_SCAN_RESULT_1_6) \
+    e(72,currentPhysicalChannelConfigs_1_6,CURRENT_PHYSICAL_CHANNEL_CONFIGS_1_6) \
+    e(73,simPhonebookChanged,SIM_PHONEBOOK_CHANGED) \
+    e(74,simPhonebookRecordsReceived,SIM_PHONEBOOK_RECORDS_RECEIVED)
+
 typedef enum radio_req {
     RADIO_REQ_ANY = 0,
     RADIO_REQ_NONE = 0,
@@ -2629,7 +2707,13 @@ typedef enum radio_req {
 
     /* android.hardware.radio@1.5::IRadio */
     RADIO_CALL_1_5_(RADIO_REQ__) /* Since 1.5.0 */
-    RADIO_1_5_REQ_LAST = RADIO_REQ_SUPPLY_SIM_PERSONALIZATION
+    RADIO_1_5_REQ_LAST = RADIO_REQ_SUPPLY_SIM_PERSONALIZATION,
+
+    /* android.hardware.radio@1.6::IRadio */
+    RADIO_CALL_1_6_(RADIO_REQ__) /* Since 1.6.8 */
+    RADIO_REQ_EMERGENCY_DIAL_1_6 = 190,
+    RADIO_REQ_SET_CARRIER_INFO_FOR_IMSI_ENCRYPTION_1_6 = 198,
+    RADIO_1_6_REQ_LAST = RADIO_REQ_UPDATE_SIM_PHONEBOOK_RECORDS
 #undef RADIO_REQ_
 #undef RADIO_REQ__
 } RADIO_REQ;
@@ -2677,7 +2761,11 @@ typedef enum radio_resp {
     RADIO_RESP_GET_DATA_CALL_LIST_1_5 = 166,
     RADIO_RESP_GET_CELL_INFO_LIST_1_5 = 174,
     RADIO_RESP_GET_ICC_CARD_STATUS_1_5 = 178,
-    RADIO_1_5_RESP_LAST = RADIO_RESP_GET_ICC_CARD_STATUS_1_5
+    RADIO_1_5_RESP_LAST = RADIO_RESP_GET_ICC_CARD_STATUS_1_5,
+
+    /* android.hardware.radio@1.6::IRadioResponse */
+    RADIO_CALL_1_6_(RADIO_RESP__) /* Since 1.6.8 */
+    RADIO_1_6_RESP_LAST = RADIO_RESP_UPDATE_SIM_PHONEBOOK_RECORDS
 #undef RADIO_RESP_
 #undef RADIO_RESP__
 } RADIO_RESP;
@@ -2725,7 +2813,9 @@ typedef enum radio_ind {
 
     /* android.hardware.radio@1.5::IRadioIndication */
     RADIO_EVENT_1_5(RADIO_IND_)
-    RADIO_1_5_IND_LAST = RADIO_IND_DATA_CALL_LIST_CHANGED_1_5 /* Since 1.5.0 */
+    RADIO_1_5_IND_LAST = RADIO_IND_DATA_CALL_LIST_CHANGED_1_5, /* Since 1.5.0 */
+    RADIO_EVENT_1_6(RADIO_IND_)
+    RADIO_1_6_IND_LAST = RADIO_IND_SIM_PHONEBOOK_RECORDS_RECEIVED /* Since 1.6.8 */
 #undef RADIO_IND_
 } RADIO_IND;
 G_STATIC_ASSERT(sizeof(RADIO_IND) == 4);

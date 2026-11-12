@@ -127,6 +127,7 @@ static GHashTable* radio_instance_table = NULL;
 #define DEFAULT_INTERFACE RADIO_INTERFACE_1_0
 
 static const GBinderClientIfaceInfo radio_iface_info[] = {
+    {RADIO_1_6, RADIO_1_6_REQ_LAST },
     {RADIO_1_5, RADIO_1_5_REQ_LAST },
     {RADIO_1_4, RADIO_1_4_REQ_LAST },
     {RADIO_1_3, RADIO_1_3_REQ_LAST },
@@ -137,6 +138,7 @@ static const GBinderClientIfaceInfo radio_iface_info[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_iface_info) == RADIO_INTERFACE_COUNT);
 
 static const char* const radio_indication_ifaces[] = {
+    RADIO_INDICATION_1_6,
     RADIO_INDICATION_1_5,
     RADIO_INDICATION_1_4,
     RADIO_INDICATION_1_3,
@@ -148,6 +150,7 @@ static const char* const radio_indication_ifaces[] = {
 G_STATIC_ASSERT(G_N_ELEMENTS(radio_indication_ifaces) == RADIO_INTERFACE_COUNT + 1);
 
 static const char* const radio_response_ifaces[] = {
+    RADIO_RESPONSE_1_6,
     RADIO_RESPONSE_1_5,
     RADIO_RESPONSE_1_4,
     RADIO_RESPONSE_1_3,
@@ -177,12 +180,12 @@ struct radio_interface_desc {
 
 #define RADIO_INTERFACE_INDEX(x) (RADIO_INTERFACE_COUNT - x - 1)
 
-#define RADIO_INTERFACE_DESC(v) \
+#define RADIO_INTERFACE_DESC_IND(v,ind) \
         RADIO_INTERFACE_##v, \
         RADIO_INTERFACE_TYPE_HIDL, \
         RADIO_AIDL_INTERFACE_NONE, \
         RADIO_##v, \
-        radio_indication_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
+        radio_indication_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##ind), \
         radio_response_ifaces + RADIO_INTERFACE_INDEX(RADIO_INTERFACE_##v), \
         radio_iface_info, G_N_ELEMENTS(radio_iface_info), \
         GBINDER_STABILITY_SYSTEM, \
@@ -192,7 +195,15 @@ struct radio_interface_desc {
         RADIO_RESP_ACKNOWLEDGE_REQUEST, \
         RADIO_IND_RIL_CONNECTED
 
+#define RADIO_INTERFACE_DESC(v) RADIO_INTERFACE_DESC_IND(v,v)
+
 static const RadioInterfaceDesc radio_hidl_interfaces[] = {
+    /*
+     * 1.6 is used for its requests and responses (e.g. setupDataCall_1_6).
+     * Indications stay at 1.5 so that existing clients don't start
+     * receiving 1.6 indications which they don't know how to parse.
+     */
+    { RADIO_INTERFACE_DESC_IND(1_6,1_5) },
     { RADIO_INTERFACE_DESC(1_5) },
     { RADIO_INTERFACE_DESC(1_4) },
     { RADIO_INTERFACE_DESC(1_3) },
