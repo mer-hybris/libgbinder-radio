@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021 Jolla Ltd.
  * Copyright (C) 2021 Slava Monich <slava.monich@jolla.com>
  *
@@ -55,6 +56,18 @@ void
     void* user_data1,
     void* user_data2);
 
+RadioInstance*
+radio_instance_new_internal(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot,
+    RADIO_INTERFACE hidl_interface,
+    RADIO_AIDL_INTERFACE aidl_interface,
+    const RadioServiceDesc* desc,
+    gboolean internal)
+    RADIO_INTERNAL;
+
 gulong
 radio_instance_send_request(
     RadioInstance* instance,
@@ -73,9 +86,21 @@ radio_instance_cancel_request(
     RADIO_INTERNAL;
 
 GQuark
+radio_instance_req_quark(
+    RadioInstance* self,
+    guint req)
+    RADIO_INTERNAL;
+
+GQuark
+radio_instance_resp_quark(
+    RadioInstance* self,
+    guint resp)
+    RADIO_INTERNAL;
+
+GQuark
 radio_instance_ind_quark(
     RadioInstance* instance,
-    RADIO_IND ind)
+    guint ind)
     RADIO_INTERNAL;
 
 #endif /* RADIO_INSTANCE_PRIVATE_H */

@@ -1,2 +1,41 @@
-A library for communicating with Android IRadio binder services,
-built on top of libgbinder.
+A library for communicating with Android radio services, built on top
+of libgbinder.
+
+It directly supports a number of known Android radio interfaces and can
+be set up to work with custom (e.g. vendor specific) interfaces as long
+as those interfaces work the same way, roughly like this:
+
+        RadioRequest                RadioClientIndicationFunc
+       ==============               =========================
+         |         ^                           ^
+      submit()     |                           |
+         |         |                           |
+         |      complete()                     |
+         |         |                           |
+  +------|---------|---------------------------|-----------+
+  |      |         |     RadioInstance         |           |
+  |      |    +=================+   +===================+  |
+  |      |    | Response object |   | Indication object |  |
+  |      |    | (resp_ifaces)   |   | (ind_ifaces)      |  |
+  |      |    +=================+   +===================+  |
+  |      |         ^                           ^           |
+  +------|---------|---------------------------|-----------+
+         |         |                           |
+      Request      |                           |
+    (serial, ...)  |                           |
+         |         |                           |
+  <------------------------- binder ----------------------->
+         |         |                           |
+         |       Response                      |
+         |  (RadioResponseInfo, ...)           |
+         |         |                           |
+         v         |                           |
+     +===================+                     |
+     | (req_iface)       |----- Indication ----+
+     | Radio service     |  (RadioResponseInfo, ...)
+     +===================+
+
+If some types and interfaces look strange to you, keep in mind that
+this library was originally written for IRadio hidl interfaces and
+later extended to support other things, too. Some legacy things had
+to stay for backward compatibility.

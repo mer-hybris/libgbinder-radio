@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2021-2022 Jolla Ltd.
  * Copyright (C) 2021-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -230,6 +231,8 @@ test_null(
     g_assert(!radio_instance_new_with_version(NULL, NULL, DEFAULT_INTERFACE));
     g_assert(!radio_instance_new_with_version(NULL, "", DEFAULT_INTERFACE));
     g_assert(!radio_instance_new_with_version(NULL, "foo", DEFAULT_INTERFACE));
+    g_assert(!radio_instance_new_with_service_desc(NULL, NULL, NULL, 0, NULL));
+    g_assert(!radio_instance_new_with_service_desc2(NULL, NULL, NULL, 0, NULL));
     g_assert(!radio_instance_new_request(NULL, 0));
     g_assert(!radio_instance_ack(NULL));
     g_assert(!radio_instance_ref(NULL));
@@ -294,8 +297,9 @@ test_basic(
     g_assert(radio_instance_rpc_header_size(radio, RADIO_REQ_DIAL));
     g_assert_cmpuint(radio_instance_rpc_header_size(radio, UNKNOWN_REQ),==,0);
 
-    /* The one we have created must still be there */
-    g_assert(radio == radio_instance_get_with_version(DEV, slot, version));
+    /* The one we have created must still be there (note that radio->version
+     * is RADIO_INTERFACE_1_0 while version is RADIO_INTERFACE_1_4) */
+    g_assert(radio == radio_instance_get_with_version(DEV,slot,radio->version));
 
     /* NULL callbacks are ignored */
     g_assert(!radio_instance_add_request_observer(radio, 0, NULL, NULL));
@@ -1298,18 +1302,18 @@ test_death_restart(
     radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
     g_assert(radio);
     g_assert(radio != dead);
-    g_assert(radio_instance_get_with_version(DEV, slot,
-        RADIO_INTERFACE_1_4) == radio);
+    g_assert(radio_instance_get_with_version(DEV, slot, radio->version) ==
+        radio);
 
     /* The dead one goes away, the new one stays registered */
     radio_instance_unref(dead);
-    g_assert(radio_instance_get_with_version(DEV, slot,
-        RADIO_INTERFACE_1_4) == radio);
+    g_assert(radio_instance_get_with_version(DEV, slot, radio->version) ==
+        radio);
     g_assert(radio_instance_get_all());
 
     radio_instance_unref(radio);
-    g_assert(!radio_instance_get_with_version(DEV, slot,
-        RADIO_INTERFACE_1_4));
+    g_assert(!radio_instance_get_with_version(DEV, slot, RADIO_INTERFACE_1_4));
+    g_assert(!radio_instance_get_with_version(DEV, slot, DEFAULT_INTERFACE));
     test_service_cleanup(&service2);
     test_service_cleanup(&service);
     gbinder_remote_object_unref(remote2);

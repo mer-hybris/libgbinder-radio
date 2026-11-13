@@ -99,7 +99,11 @@ typedef struct radio_aidl_sim_slot_status {
 
 /* Transaction codes */
 
-/* c(req,resp,Name,CALL_NAME) */
+/* r(req,callName,CALL_NAME) */
+#define RADIO_CONFIG_AIDL_REQ_1(r) \
+    r(7,setResponseFunctions,SET_RESPONSE_FUNCTIONS) /* Since 1.7.0 */
+
+/* c(req,resp,callName,CALL_NAME) */
 #define RADIO_CONFIG_AIDL_CALL_1(c) \
     c(1,1,getHalDeviceCapabilities,GET_HAL_DEVICE_CAPABILITIES) \
     c(2,2,getNumOfLiveModems,GET_NUM_OF_LIVE_MODEMS) \
@@ -109,20 +113,22 @@ typedef struct radio_aidl_sim_slot_status {
     c(6,6,setPreferredDataModem,SET_PREFERRED_DATA_MODEM) \
     c(8,7,setSimSlotsMapping,SET_SIM_SLOTS_MAPPING) \
 
-/* i(code,Name,IND_NAME) */
+/* i(code,indName,IND_NAME) */
 #define RADIO_CONFIG_AIDL_IND_1(i) \
     i(1,simSlotsStatusChanged,SIM_SLOTS_STATUS_CHANGED) \
+    i(2,onSimultaneousCallingSupportChanged,ON_SIMULTANEOUS_CALLING_SUPPORT_CHANGED)
 
 typedef enum radio_aidl_config_req {
     RADIO_CONFIG_AIDL_REQ_ANY = 0,
     RADIO_CONFIG_AIDL_REQ_NONE = 0,
-#define RADIO_CONFIG_AIDL_REQ_(req,resp,Name,NAME) RADIO_CONFIG_AIDL_REQ_##NAME = req,
 
     /* android.hardware.radio.config.IRadioConfig v1 */
-    RADIO_CONFIG_AIDL_REQ_SET_RESPONSE_FUNCTIONS = 7, /* setResponseFunctions */
+#define RADIO_CONFIG_AIDL_REQ_(req,Name,NAME) RADIO_CONFIG_AIDL_REQ_##NAME = req,
+    RADIO_CONFIG_AIDL_REQ_1(RADIO_CONFIG_AIDL_REQ_)
+#undef RADIO_CONFIG_AIDL_REQ_
+#define RADIO_CONFIG_AIDL_REQ_(req,resp,Name,NAME) RADIO_CONFIG_AIDL_REQ_##NAME = req,
     RADIO_CONFIG_AIDL_CALL_1(RADIO_CONFIG_AIDL_REQ_)
     RADIO_CONFIG_AIDL_1_REQ_LAST = RADIO_CONFIG_AIDL_REQ_SET_SIM_SLOTS_MAPPING,
-
 #undef RADIO_CONFIG_AIDL_REQ_
 } RADIO_CONFIG_AIDL_REQ;
 G_STATIC_ASSERT(sizeof(RADIO_CONFIG_AIDL_REQ) == 4);
@@ -147,8 +153,6 @@ typedef enum radio_aidl_config_ind {
 
     /* android.hardware.radio.config.IRadioConfigIndication v1 */
     RADIO_CONFIG_AIDL_IND_1(RADIO_CONFIG_AIDL_IND_)
-    RADIO_CONFIG_AIDL_1_IND_LAST = RADIO_CONFIG_AIDL_IND_SIM_SLOTS_STATUS_CHANGED,
-
 #undef RADIO_CONFIG_AIDL_IND_
 } RADIO_CONFIG_AIDL_IND;
 G_STATIC_ASSERT(sizeof(RADIO_CONFIG_AIDL_IND) == 4);
