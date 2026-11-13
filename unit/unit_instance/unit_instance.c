@@ -864,6 +864,93 @@ test_resp(
 }
 
 /*==========================================================================*
+ * resp_unref
+ *
+ * The response handler drops the last reference to the instance.
+ *==========================================================================*/
+
+static
+gboolean
+test_resp_unref_handle(
+    RadioInstance* radio,
+    RADIO_RESP code,
+    const RadioResponseInfo* info,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    RadioInstance** ptr = user_data;
+
+    g_assert(*ptr == radio);
+    *ptr = NULL;
+    radio_instance_unref(radio);
+    return FALSE; /* Not handled, i.e. to be acked */
+}
+
+static
+void
+test_resp_unref_observe(
+    RadioInstance* radio,
+    RADIO_RESP code,
+    const RadioResponseInfo* info,
+    const GBinderReader* reader,
+    gpointer user_data)
+{
+    int* count = user_data;
+
+    (*count)++;
+}
+
+static
+void
+test_resp_unref(
+    void)
+{
+    const char* slot = "slot2";
+    const char* fqname = RADIO_1_0 "/slot2";
+    TestRadioService service;
+    GBinderServiceManager* sm = gbinder_servicemanager_new(DEV);
+    GBinderRemoteObject* remote;
+    GBinderLocalRequest* req;
+    GBinderClient* resp;
+    RadioInstance* radio;
+    RadioResponseInfo info;
+    GBinderWriter writer;
+    int observed = 0;
+
+    test_service_init(&service);
+    memset(&info, 0, sizeof(info));
+    info.type = RADIO_RESP_SOLICITED_ACK_EXP;
+    info.serial = 123;
+
+    remote = test_gbinder_servicemanager_new_service(sm, fqname, service.obj);
+    radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+    g_assert(radio_instance_add_response_handler(radio, TEST_RESP,
+        test_resp_unref_handle, &radio));
+    g_assert(radio_instance_add_response_observer_with_priority(radio,
+        RADIO_INSTANCE_PRIORITY_LOWEST, TEST_RESP,
+        test_resp_unref_observe, &observed));
+
+    resp = gbinder_client_new2(service.resp_obj,
+        TEST_ARRAY_AND_COUNT(radio_resp_iface_info));
+    req = gbinder_client_new_request2(resp, TEST_RESP);
+    gbinder_local_request_init_writer(req, &writer);
+    gbinder_writer_append_buffer_object(&writer, &info, sizeof(info));
+    gbinder_client_transact_sync_oneway(resp, TEST_RESP, req);
+    g_assert(!radio); /* Released by the handler */
+
+    /* The low priority observer still saw it, and the response got acked */
+    g_assert_cmpint(observed, == ,1);
+    g_assert_cmpint(test_service_req_count(&service,
+        RADIO_REQ_RESPONSE_ACKNOWLEDGEMENT), == ,1);
+
+    gbinder_local_request_unref(req);
+    gbinder_client_unref(resp);
+    test_service_cleanup(&service);
+    gbinder_remote_object_unref(remote);
+    gbinder_servicemanager_unref(sm);
+}
+
+/*==========================================================================*
  * ack
  *==========================================================================*/
 
@@ -1175,6 +1262,62 @@ test_death(
 }
 
 /*==========================================================================*
+ * death_restart
+ *
+ * The service dies and comes back, a new instance is created for it
+ * while the dead one is still referenced. Releasing the dead one must
+ * not unregister the new one.
+ *==========================================================================*/
+
+static
+void
+test_death_restart(
+    void)
+{
+    const char* slot = "slot1";
+    const char* fqname = RADIO_1_0 "/slot1";
+    TestRadioService service, service2;
+    GBinderServiceManager* sm = gbinder_servicemanager_new(DEV);
+    GBinderRemoteObject* remote;
+    GBinderRemoteObject* remote2;
+    RadioInstance* dead;
+    RadioInstance* radio;
+
+    test_service_init(&service);
+    remote = test_gbinder_servicemanager_new_service(sm, fqname, service.obj);
+    dead = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+    g_assert(dead);
+    test_gbinder_remote_object_kill(remote);
+    g_assert(radio_instance_is_dead(dead));
+    g_assert(!radio_instance_get_with_version(DEV, slot, RADIO_INTERFACE_1_4));
+
+    /* The service is back */
+    test_service_init(&service2);
+    remote2 = test_gbinder_servicemanager_new_service(sm, fqname,
+        service2.obj);
+    radio = radio_instance_new_with_version(DEV, slot, RADIO_INTERFACE_1_4);
+    g_assert(radio);
+    g_assert(radio != dead);
+    g_assert(radio_instance_get_with_version(DEV, slot,
+        RADIO_INTERFACE_1_4) == radio);
+
+    /* The dead one goes away, the new one stays registered */
+    radio_instance_unref(dead);
+    g_assert(radio_instance_get_with_version(DEV, slot,
+        RADIO_INTERFACE_1_4) == radio);
+    g_assert(radio_instance_get_all());
+
+    radio_instance_unref(radio);
+    g_assert(!radio_instance_get_with_version(DEV, slot,
+        RADIO_INTERFACE_1_4));
+    test_service_cleanup(&service2);
+    test_service_cleanup(&service);
+    gbinder_remote_object_unref(remote2);
+    gbinder_remote_object_unref(remote);
+    gbinder_servicemanager_unref(sm);
+}
+
+/*==========================================================================*
  * Common
  *==========================================================================*/
 
@@ -1190,10 +1333,12 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("ind"), test_ind);
     g_test_add_func(TEST_("req"), test_req);
     g_test_add_func(TEST_("resp"), test_resp);
+    g_test_add_func(TEST_("resp_unref"), test_resp_unref);
     g_test_add_func(TEST_("ack"), test_ack);
     g_test_add_func(TEST_("send_req"), test_send_req);
     g_test_add_func(TEST_("enabled"), test_enabled);
     g_test_add_func(TEST_("death"), test_death);
+    g_test_add_func(TEST_("death_restart"), test_death_restart);
     test_init(&test_opt, argc, argv);
     return g_test_run();
 }

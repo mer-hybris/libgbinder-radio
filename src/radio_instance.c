@@ -378,6 +378,9 @@ radio_instance_indication(
             int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
             gboolean handled = FALSE;
 
+            /* Handlers may drop the last reference to the instance */
+            radio_instance_ref(self);
+
             /* High-priority observers are notified first */
             for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
                 if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
@@ -419,6 +422,7 @@ radio_instance_indication(
                 GDEBUG("ack unhandled indication");
                 radio_instance_ack(self);
             }
+            radio_instance_unref(self);
             *status = GBINDER_STATUS_OK;
         } else {
             GWARN("Failed to decode indication %u", code);
@@ -478,6 +482,9 @@ radio_instance_response(
         int p = RADIO_OBSERVER_PRIORITY_HIGHEST;
         gboolean handled = FALSE;
 
+        /* Handlers may drop the last reference to the instance */
+        radio_instance_ref(self);
+
         /* High-priority observers are notified first */
         for (; p > RADIO_OBSERVER_PRIORITY_DEFAULT; p--) {
             if (signals[RADIO_OBSERVER_PRIORITY_INDEX(p)]) {
@@ -506,6 +513,7 @@ radio_instance_response(
             GDEBUG("ack unhandled response");
             radio_instance_ack(self);
         }
+        radio_instance_unref(self);
     }
     *status = GBINDER_STATUS_OK;
     return NULL;
@@ -537,10 +545,16 @@ radio_instance_drop_binder(
 static
 void
 radio_instance_remove(
-    const char* key)
+    const char* key,
+    gconstpointer instance)
 {
+    /*
+     * A dead instance is removed from the table right away, and a new
+     * one with the same key may have been created by the time the dead
+     * one is freed. Only remove the entry if it's still this instance.
+     */
     if (radio_instance_table &&
-        g_hash_table_contains(radio_instance_table, key)) {
+        g_hash_table_lookup(radio_instance_table, key) == instance) {
         g_hash_table_remove(radio_instance_table, key);
         radio_registry_instance_removed(key);
         if (g_hash_table_size(radio_instance_table) == 0) {
@@ -564,7 +578,7 @@ radio_instance_died(
     radio_instance_ref(self);
     radio_instance_drop_binder(self);
     g_signal_emit(self, radio_instance_signals[SIGNAL_DEATH], 0);
-    radio_instance_remove(self->key);
+    radio_instance_remove(self->key, self);
     radio_instance_unref(self);
 }
 
@@ -577,7 +591,7 @@ radio_instance_gone(
     char* key = key_ptr;
 
     GVERBOSE_("%s", key);
-    radio_instance_remove(key);
+    radio_instance_remove(key, dead);
     g_free(key);
 }
 
