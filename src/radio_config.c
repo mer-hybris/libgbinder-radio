@@ -369,6 +369,14 @@ radio_config_call_free(
 
 static
 void
+radio_config_call_destroy(
+    gpointer call)
+{
+    radio_config_call_free(call);
+}
+
+static
+void
 radio_config_call_complete(
     GBinderClient* client,
     GBinderRemoteReply* reply,
@@ -1049,7 +1057,7 @@ radio_config_send_request(
     /* Then actually submit the request */
     tx_id = gbinder_client_transact(self->client, req->code,
         GBINDER_TX_FLAG_ONEWAY, req->args, radio_config_call_complete,
-        (GDestroyNotify) radio_config_call_free, call);
+        radio_config_call_destroy, call);
     if (tx_id) {
         return tx_id;
     } else {

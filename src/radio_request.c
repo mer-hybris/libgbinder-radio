@@ -131,7 +131,7 @@ gboolean
 radio_request_default_retry(
     RadioRequest* req,
     RADIO_TX_STATUS status,
-    RADIO_RESP resp,
+    guint32 resp,
     RADIO_ERROR error,
     const GBinderReader* reader,
     void* user_data)
