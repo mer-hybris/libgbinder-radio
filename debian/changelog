@@ -1,3 +1,19 @@
+libgbinder-radio (1.6.7) unstable; urgency=medium
+
+  * Don't call functions through mismatched pointer types
+  * Don't let a dead instance unregister its replacement
+  * Keep the client alive while it handles rilConnected
+  * Hold a reference while dispatching responses and indications
+  * Push the queue when a waiting group stops waiting
+  * Start over after running callbacks while pushing the queue
+  * Let the next group become the owner when the queue moves
+  * Take a retried request out of the queue on response
+  * Update the timer when a request is queued
+  * Enforce test timeouts when the main loop is blocked
+  * Bumped glib version requirement
+
+ -- Slava Monich <slava.monich@jolla.com>  Fri, 13 Nov 2026 06:12:21 +0200
+
 libgbinder-radio (1.6.6) unstable; urgency=medium
 
   * Minor bug fix
