@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2018-2022 Jolla Ltd.
  * Copyright (C) 2018-2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -174,6 +175,22 @@ radio_instance_new_with_modem_slot_version_and_interface(
     int slot,
     RADIO_INTERFACE version,
     RADIO_AIDL_INTERFACE aidl_interface); /* Since 1.6.0 */
+
+RadioInstance*
+radio_instance_new_with_service_desc(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot,
+    const RadioServiceDesc* desc); /* Since 1.7.0 */
+
+RadioInstance*
+radio_instance_new_with_service_desc2(
+    const char* dev,
+    const char* name,
+    const char* modem,
+    int slot,
+    const RadioServiceDesc2* desc); /* Since 1.7.0 */
 
 RadioInstance*
 radio_instance_get(

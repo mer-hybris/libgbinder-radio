@@ -1,4 +1,5 @@
 /*
+ * Copyright (C) 2026 Jolla Mobile Ltd
  * Copyright (C) 2022 Jolla Ltd.
  * Copyright (C) 2022 Slava Monich <slava.monich@jolla.com>
  *
@@ -343,6 +344,20 @@ test_req_resp2(
 }
 
 /*==========================================================================*
+ * req_resp2
+ *==========================================================================*/
+
+static
+void
+test_error_string()
+{
+    g_assert_null(radio_error_string(-2));
+    g_assert_cmpstr(radio_error_string(0), == ,"NONE");
+    g_assert_cmpstr(radio_error_string(1), == ,"RADIO_NOT_AVAILABLE");
+    g_assert_cmpstr(radio_error_string(2), == ,"GENERIC_FAILURE");
+}
+
+/*==========================================================================*
  * Common
  *==========================================================================*/
 
@@ -357,6 +372,7 @@ int main(int argc, char* argv[])
     g_test_add_func(TEST_("ind_name"), test_ind_name);
     g_test_add_func(TEST_("req_resp"), test_req_resp);
     g_test_add_func(TEST_("req_resp2"), test_req_resp2);
+    g_test_add_func(TEST_("error_string"), test_error_string);
     test_init(&test_opt, argc, argv);
     return g_test_run();
 }
